@@ -3,12 +3,15 @@
 #include <vector>
 #include <nlohmann/json.hpp>
 
+enum class IdKind { UUIDv7, HighLow, Snowflake, DatabaseSequential, TableSequential };
+
 struct OrmField {
     std::string name;
     std::string type;
     std::string encoding;
     bool required = false;
     bool is_primary_key = false;
+    IdKind pk_kind = IdKind::UUIDv7;
     bool is_indexed = false;
     std::string index_type;
     bool is_unique = false;

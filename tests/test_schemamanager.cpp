@@ -13,12 +13,12 @@ OrmSchema load_schema_from_json(const std::string& js) {
 
 TEST_CASE("Add field") {
     auto old_schema = load_schema_from_json(R"({
-      "properties": { "id": { "type": "integer", "primaryKey": true, "default": 0 } },
+      "properties": { "id": { "type": "integer", "primaryKey": true, "default": 0, "kind": "UUIDv7" } },
       "required": ["id"]
     })");
     auto new_schema = load_schema_from_json(R"({
       "properties": {
-        "id": { "type": "integer", "primaryKey": true, "default": 0 },
+        "id": { "type": "integer", "primaryKey": true, "default": 0, "kind": "UUIDv7" },
         "active": { "type": "boolean", "default": true }
       },
       "required": ["id"]
@@ -33,13 +33,13 @@ TEST_CASE("Add field") {
 TEST_CASE("Remove field") {
     auto old_schema = load_schema_from_json(R"({
       "properties": {
-        "id": { "type": "integer", "primaryKey": true, "default": 0 },
+        "id": { "type": "integer", "primaryKey": true, "default": 0, "kind": "UUIDv7" },
         "active": { "type": "boolean", "default": true }
       },
       "required": ["id"]
     })");
     auto new_schema = load_schema_from_json(R"({
-      "properties": { "id": { "type": "integer", "primaryKey": true, "default": 0 } },
+      "properties": { "id": { "type": "integer", "primaryKey": true, "default": 0, "kind": "UUIDv7" } },
       "required": ["id"]
     })");
 
@@ -51,11 +51,11 @@ TEST_CASE("Remove field") {
 
 TEST_CASE("Type change") {
     auto old_schema = load_schema_from_json(R"({
-      "properties": { "id": { "type": "integer", "primaryKey": true, "default": 0 } },
+      "properties": { "id": { "type": "integer", "primaryKey": true, "default": 0, "kind": "UUIDv7" } },
       "required": ["id"]
     })");
     auto new_schema = load_schema_from_json(R"({
-      "properties": { "id": { "type": "string", "primaryKey": true, "default": "0" } },
+      "properties": { "id": { "type": "string", "primaryKey": true, "default": "0", "kind": "UUIDv7" } },
       "required": ["id"]
     })");
 
@@ -66,10 +66,10 @@ TEST_CASE("Type change") {
 
 TEST_CASE("Default value change") {
     auto old_schema = load_schema_from_json(R"({
-      "properties": { "id": { "type": "integer", "default": 0 } }
+      "properties": { "id": { "type": "integer", "default": 0, "kind": "UUIDv7" } }
     })");
     auto new_schema = load_schema_from_json(R"({
-      "properties": { "id": { "type": "integer", "default": 42 } }
+      "properties": { "id": { "type": "integer", "default": 42, "kind": "UUIDv7" } }
     })");
 
     SchemaManager mgr(old_schema, new_schema);
@@ -83,7 +83,7 @@ TEST_CASE("Default value change") {
 
 TEST_CASE("No changes = no DDL") {
     auto old_schema = load_schema_from_json(R"({
-      "properties": { "id": { "type": "integer", "primaryKey": true } }
+      "properties": { "id": { "type": "integer", "primaryKey": true, "kind": "UUIDv7" } }
     })");
     auto new_schema = old_schema;
     SchemaManager mgr(old_schema, new_schema);

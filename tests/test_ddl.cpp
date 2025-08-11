@@ -15,7 +15,7 @@ OrmSchema load_schema(const std::string& js) {
 TEST_CASE("DDL covers all types and features", "[ddl]") {
     std::string jschema = R"({
       "properties": {
-        "id":      { "type": "string", "primaryKey": true },
+        "id":      { "type": "string", "primaryKey": true, "kind": "UUIDv7" },
         "active":  { "type": "boolean", "default": true },
         "avatar":  { "type": "binary", "encoding": "base64" },
         "score":   { "type": "integer", "default": 42 },
@@ -51,7 +51,7 @@ TEST_CASE("DDL covers all types and features", "[ddl]") {
 TEST_CASE("DDL fails on duplicate fields", "[ddl][error]") {
     std::string jschema = R"({
       "properties": {
-        "id": { "type": "string", "primaryKey": true },
+        "id": { "type": "string", "primaryKey": true, "kind": "UUIDv7" },
         "id": { "type": "string" }
       }
     })";
