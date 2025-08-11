@@ -3,7 +3,7 @@
   "title": "User",
   "type": "object",
   "properties": {
-    "id":        { "type": "integer", "primaryKey": true, "default": 0 },
+    "id":        { "type": "integer", "primaryKey": true, "default": 0, "kind": "UUIDv7" },
     "name":      { "type": "string",  "index": true, "indexType": "btree", "indexName": "idx_users_name", "default": "Unknown" },
     "email":     { "type": "string",  "unique": true, "default": "", "indexName": "idx_users_email" },
     "profile":   { "type": "json" },

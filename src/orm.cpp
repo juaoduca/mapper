@@ -19,6 +19,13 @@ bool OrmSchema::from_json(const nlohmann::json& j, OrmSchema& schema) {
         field.encoding = v.value("encoding", "");
         field.required = (std::find(required_list.begin(), required_list.end(), field.name) != required_list.end());
         field.is_primary_key = v.value("primaryKey", false);
+        std::string kind_str = v.value("kind", "UUIDv7");
+        IdKind kind = IdKind::UUIDv7;
+        if (kind_str == "HighLow") kind = IdKind::HighLow;
+        else if (kind_str == "Snowflake") kind = IdKind::Snowflake;
+        else if (kind_str == "DatabaseSequential") kind = IdKind::DatabaseSequential;
+        else if (kind_str == "TableSequential") kind = IdKind::TableSequential;
+        if (field.is_primary_key) field.pk_kind = kind;
         field.is_indexed = v.value("index", false);
         field.index_type = v.value("indexType", "");
         field.is_unique = v.value("unique", false);
