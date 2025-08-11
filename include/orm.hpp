@@ -3,7 +3,7 @@
 #include <vector>
 #include <nlohmann/json.hpp>
 
-enum class IdKind { UUIDv7, HighLow, Snowflake, DatabaseSequential, TableSequential };
+enum class IdKind { UUIDv7, HighLow, Snowflake, DBSerial, TBSerial };
 
 struct OrmField {
     std::string name;

@@ -23,8 +23,8 @@ bool OrmSchema::from_json(const nlohmann::json& j, OrmSchema& schema) {
         IdKind kind = IdKind::UUIDv7;
         if (kind_str == "HighLow") kind = IdKind::HighLow;
         else if (kind_str == "Snowflake") kind = IdKind::Snowflake;
-        else if (kind_str == "DatabaseSequential") kind = IdKind::DatabaseSequential;
-        else if (kind_str == "TableSequential") kind = IdKind::TableSequential;
+        else if (kind_str == "DBSerial") kind = IdKind::DBSerial;
+        else if (kind_str == "TBSerial") kind = IdKind::TBSerial;
         if (field.is_primary_key) field.pk_kind = kind;
         field.is_indexed = v.value("index", false);
         field.index_type = v.value("indexType", "");
