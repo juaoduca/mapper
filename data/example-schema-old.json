@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "User",
+  "type": "object",
+  "properties": {
+    "id":        { "type": "integer", "primaryKey": true, "default": 0 },
+    "name":      { "type": "string",  "index": true, "indexType": "btree", "indexName": "idx_users_name", "default": "Unknown" },
+    "email":     { "type": "string",  "unique": true, "default": "", "indexName": "idx_users_email" },
+    "profile":   { "type": "json" },
+    "birthdate": { "type": "date" },
+    "avatar":    { "type": "binary", "encoding": "base64" },
+    "created":   { "type": "datetime" }
+  },
+  "required": ["id", "name", "created"],
+  "indexes": [
+    { "fields": ["email"], "type": "btree", "unique": true, "indexName": "idx_users_email" },
+    { "fields": ["created"], "type": "btree", "indexName": "idx_users_created" }
+  ]
+}
