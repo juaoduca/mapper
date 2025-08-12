@@ -1,0 +1,26 @@
+name: Init gh-pages
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  init:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create placeholder site
+        run: |
+          mkdir -p public/chat
+          date -u +%FT%TZ > public/chat/ok.txt
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: public
+          keep_files: true
+          enable_jekyll: false
