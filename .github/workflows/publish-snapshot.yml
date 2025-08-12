@@ -1,0 +1,43 @@
+name: Publish Chat Snapshot (minimal)
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Build snapshot.json
+        run: |
+          git ls-tree -r --name-only HEAD | jq -R -s 'split("\n")[:-1]' > files.json
+          jq -n \
+            --arg sha "$GITHUB_SHA" \
+            --arg branch "$GITHUB_REF_NAME" \
+            --arg date "$(date -u +%FT%TZ)" \
+            --argjson files "$(cat files.json)" \
+            '{sha:$sha,branch:$branch,date:$date,files:$files}' > snapshot.json
+
+      - name: Stage site files
+        run: |
+          mkdir -p public/chat/"$GITHUB_SHA"
+          cp snapshot.json public/chat/"$GITHUB_SHA"/snapshot.json
+          printf '{"latest":"%s"}\n' "$GITHUB_SHA" > public/chat/latest.json
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: public
+          keep_files: true
+          enable_jekyll: false
