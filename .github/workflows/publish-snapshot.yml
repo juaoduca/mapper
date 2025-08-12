@@ -1,7 +1,8 @@
 name: Publish Chat Snapshot (with contents)
+
 on:
   push:
-    branches: [ "main" ]   # adjust if needed
+    branches: [ "main" ]  # change if your default branch differs
 
 permissions:
   contents: write
@@ -10,51 +11,50 @@ jobs:
   snapshot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 1 }
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Build snapshot.json
-        shell: bash
+        env:
+          MAX_FILE_KB: "256"   # inline only text files <= 256KB
         run: |
-          MAX_FILE_KB=256         # inline only text files <= 256KB
-          REPO="${GITHUB_REPOSITORY}"
-          BRANCH="${GITHUB_REF_NAME}"
-          SHA="${GITHUB_SHA}"
-          DATE="$(date -u +%FT%TZ)"
+          set -euo pipefail
+          # Capture metadata for this commit into env
+          echo "DATE=$(date -u +%FT%TZ)" >> "$GITHUB_ENV"
+          echo "REPO=$GITHUB_REPOSITORY" >> "$GITHUB_ENV"
+          echo "BRANCH=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+          echo "SHA=$GITHUB_SHA" >> "$GITHUB_ENV"
 
-          # List all tracked files at HEAD with mode/sha/size
+          # List files at HEAD with size
           git ls-tree -r -l --full-tree HEAD > tree.txt
 
-          python3 - << 'PY'
-import base64, json, os, re, sys
+          python3 - <<'PY'
+import base64, json, os, re
 
-# simple binary detector: treat files with NUL byte as binary
 def is_binary(data: bytes) -> bool:
     return b"\x00" in data
 
 max_file_bytes = int(os.environ.get("MAX_FILE_KB","256")) * 1024
-repo = os.environ["GITHUB_REPOSITORY"]
-branch = os.environ["GITHUB_REF_NAME"]
-sha = os.environ["GITHUB_SHA"]
-date = os.environ["DATE"]
+repo   = os.environ["REPO"]
+branch = os.environ["BRANCH"]
+sha    = os.environ["SHA"]
+date   = os.environ["DATE"]
 
-def raw_url(path):
-    # GitHub raw for the push commit
+def raw_url(path: str) -> str:
     return f"https://raw.githubusercontent.com/{repo}/{sha}/{path}"
 
 files = []
 with open("tree.txt","r",encoding="utf-8") as f:
     for line in f:
         # format: <mode> <type> <sha> <size>\t<path>
-        # e.g.: 100644 blob a1b2c3... 1234\tpath/to/file
         m = re.match(r"(\d+)\s+\w+\s+([0-9a-f]{40})\s+(\d+)\t(.+)$", line.strip())
         if not m:
-            # submodules or unusual entries can show size '-' — skip them
             m2 = re.match(r"(\d+)\s+\w+\s+([0-9a-f]{40})\s+-\t(.+)$", line.strip())
             if not m2:
                 continue
-            mode, objsha, size, path = m2.group(1), m2.group(2), None, m2.group(3)
-            size_int = None
+            mode, objsha, size_int, path = m2.group(1), m2.group(2), None, m2.group(3)
         else:
             mode, objsha, size, path = m.groups()
             size_int = int(size)
@@ -67,7 +67,6 @@ with open("tree.txt","r",encoding="utf-8") as f:
             "raw_url": raw_url(path),
         }
 
-        # Try to inline small text files
         try:
             with open(path, "rb") as fp:
                 data = fp.read()
@@ -81,23 +80,15 @@ with open("tree.txt","r",encoding="utf-8") as f:
 
         files.append(entry)
 
-snap = {
-    "sha": sha,
-    "branch": branch,
-    "date": date,
-    "files": files
-}
-
+snap = { "sha": sha, "branch": branch, "date": date, "files": files }
 with open("snapshot.json","w",encoding="utf-8") as out:
     json.dump(snap, out, ensure_ascii=False, separators=(",",":"))
 PY
 
-      - name: Prepare gh-pages structure
-        run: |
-          mkdir -p public/chat/${GITHUB_SHA}
-          cp snapshot.json public/chat/${GITHUB_SHA}/snapshot.json
-          # Also write/update a "latest" pointer for convenience
-          echo "{\"latest\":\"${GITHUB_SHA}\"}" > public/chat/latest.json
+          # Stage site files
+          mkdir -p public/chat/"$SHA"
+          cp snapshot.json public/chat/"$SHA"/snapshot.json
+          printf '{"latest":"%s"}\n' "$SHA" > public/chat/latest.json
 
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@v3
