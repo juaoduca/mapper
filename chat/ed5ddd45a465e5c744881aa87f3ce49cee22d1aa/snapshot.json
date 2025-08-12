@@ -1,0 +1,33 @@
+{
+  "sha": "ed5ddd45a465e5c744881aa87f3ce49cee22d1aa",
+  "branch": "main",
+  "date": "2025-08-12T18:48:30Z",
+  "files": [
+    ".github/workflows/init-gh-pages.yml",
+    ".github/workflows/publish-snapshot.yml",
+    ".gitignore",
+    "CMakeCache.txt",
+    "CMakeLists.txt",
+    "CTestTestfile.cmake",
+    "Makefile",
+    "README.md",
+    "cmake_install.cmake",
+    "compile_commands.json",
+    "data/example-schema-new.json",
+    "data/example-schema-old.json",
+    "include/orm.hpp",
+    "include/schemamanager.hpp",
+    "include/storage.hpp",
+    "include/ulid.hpp",
+    "include/visitor.hpp",
+    "main.cpp",
+    "nginx_sample.conf",
+    "src/orm.cpp",
+    "src/schemamanager.cpp",
+    "src/storage.cpp",
+    "src/visitor.cpp",
+    "tests/external/catch.hpp",
+    "tests/test_ddl.cpp",
+    "tests/test_schemamanager.cpp"
+  ]
+}
