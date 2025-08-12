@@ -1,4 +1,4 @@
-name: Publish Chat Snapshot (minimal)
+name: Publish Chat Snapshot (with contents)
 
 on:
   push:
@@ -17,18 +17,81 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Build snapshot.json
-        run: |
-          git ls-tree -r --name-only HEAD | jq -R -s 'split("\n")[:-1]' > files.json
-          jq -n \
-            --arg sha "$GITHUB_SHA" \
-            --arg branch "$GITHUB_REF_NAME" \
-            --arg date "$(date -u +%FT%TZ)" \
-            --argjson files "$(cat files.json)" \
-            '{sha:$sha,branch:$branch,date:$date,files:$files}' > snapshot.json
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
 
-      - name: Stage site files
+      - name: Write builder script
+        shell: bash
         run: |
+          cat > build_snapshot.py <<'PY'
+import base64, json, os, sys
+from datetime import datetime, timezone
+
+REPO   = os.environ.get("GITHUB_REPOSITORY","")
+BRANCH = os.environ.get("GITHUB_REF_NAME","")
+SHA    = os.environ.get("GITHUB_SHA","")
+DATE   = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+MAX_B  = int(os.environ.get("MAX_FILE_KB","256")) * 1024
+
+SKIP_DIRS = {".git","node_modules","dist","build",".next","out","coverage","target","vendor",".venv",".pytest_cache",".cache"}
+SKIP_EXTS = {".png",".jpg",".jpeg",".gif",".webp",".mp4",".mov",".zip",".gz",".bz2",".7z",".pdf",".exe",".dll",".so",".dylib",".bin"}
+
+def raw_url(path: str) -> str:
+    return f"https://raw.githubusercontent.com/{REPO}/{SHA}/{path}"
+
+def is_probably_text(b: bytes) -> bool:
+    # If NUL present, treat as binary
+    if b"\x00" in b: return False
+    try:
+        b.decode("utf-8")
+        return True
+    except UnicodeDecodeError:
+        return False
+
+files = []
+for root, dirs, filenames in os.walk(".", topdown=True):
+    # prune skip dirs
+    dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+    for fn in filenames:
+        rel = os.path.relpath(os.path.join(root, fn), ".").replace("\\","/")
+        if rel.startswith(".git/"):
+            continue
+        if os.path.splitext(rel)[1].lower() in SKIP_EXTS:
+            size = os.path.getsize(rel)
+            files.append({"path": rel, "mode": None, "sha": None, "size": size, "raw_url": raw_url(rel), "encoding":"none"})
+            continue
+
+        try:
+            size = os.path.getsize(rel)
+        except FileNotFoundError:
+            continue
+
+        entry = {"path": rel, "mode": None, "sha": None, "size": size, "raw_url": raw_url(rel)}
+        try:
+            with open(rel, "rb") as fp:
+                data = fp.read()
+            if size <= MAX_B and is_probably_text(data):
+                entry["encoding"] = "base64"
+                entry["content_b64"] = base64.b64encode(data).decode("ascii")
+            else:
+                entry["encoding"] = "none"
+        except Exception:
+            entry["encoding"] = "none"
+        files.append(entry)
+
+snapshot = {"sha": SHA, "branch": BRANCH, "date": DATE, "files": files}
+with open("snapshot.json","w",encoding="utf-8") as f:
+    json.dump(snapshot, f, ensure_ascii=False, separators=(",",":"))
+PY
+
+      - name: Build snapshot and stage site
+        shell: bash
+        env:
+          MAX_FILE_KB: "256"   # inline only text files <= 256KB
+        run: |
+          python build_snapshot.py
           mkdir -p public/chat/"$GITHUB_SHA"
           cp snapshot.json public/chat/"$GITHUB_SHA"/snapshot.json
           printf '{"latest":"%s"}\n' "$GITHUB_SHA" > public/chat/latest.json
@@ -41,3 +104,5 @@ jobs:
           publish_dir: public
           keep_files: true
           enable_jekyll: false
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
