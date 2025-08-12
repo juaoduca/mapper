@@ -1,0 +1,111 @@
+name: Publish Chat Snapshot (with contents)
+on:
+  push:
+    branches: [ "main" ]   # adjust if needed
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 1 }
+
+      - name: Build snapshot.json
+        shell: bash
+        run: |
+          MAX_FILE_KB=256         # inline only text files <= 256KB
+          REPO="${GITHUB_REPOSITORY}"
+          BRANCH="${GITHUB_REF_NAME}"
+          SHA="${GITHUB_SHA}"
+          DATE="$(date -u +%FT%TZ)"
+
+          # List all tracked files at HEAD with mode/sha/size
+          git ls-tree -r -l --full-tree HEAD > tree.txt
+
+          python3 - << 'PY'
+import base64, json, os, re, sys
+
+# simple binary detector: treat files with NUL byte as binary
+def is_binary(data: bytes) -> bool:
+    return b"\x00" in data
+
+max_file_bytes = int(os.environ.get("MAX_FILE_KB","256")) * 1024
+repo = os.environ["GITHUB_REPOSITORY"]
+branch = os.environ["GITHUB_REF_NAME"]
+sha = os.environ["GITHUB_SHA"]
+date = os.environ["DATE"]
+
+def raw_url(path):
+    # GitHub raw for the push commit
+    return f"https://raw.githubusercontent.com/{repo}/{sha}/{path}"
+
+files = []
+with open("tree.txt","r",encoding="utf-8") as f:
+    for line in f:
+        # format: <mode> <type> <sha> <size>\t<path>
+        # e.g.: 100644 blob a1b2c3... 1234\tpath/to/file
+        m = re.match(r"(\d+)\s+\w+\s+([0-9a-f]{40})\s+(\d+)\t(.+)$", line.strip())
+        if not m:
+            # submodules or unusual entries can show size '-' — skip them
+            m2 = re.match(r"(\d+)\s+\w+\s+([0-9a-f]{40})\s+-\t(.+)$", line.strip())
+            if not m2:
+                continue
+            mode, objsha, size, path = m2.group(1), m2.group(2), None, m2.group(3)
+            size_int = None
+        else:
+            mode, objsha, size, path = m.groups()
+            size_int = int(size)
+
+        entry = {
+            "path": path,
+            "mode": mode,
+            "sha": objsha,
+            "size": size_int,
+            "raw_url": raw_url(path),
+        }
+
+        # Try to inline small text files
+        try:
+            with open(path, "rb") as fp:
+                data = fp.read()
+            if size_int is not None and size_int <= max_file_bytes and not is_binary(data):
+                entry["encoding"] = "base64"
+                entry["content_b64"] = base64.b64encode(data).decode("ascii")
+            else:
+                entry["encoding"] = "none"
+        except Exception:
+            entry["encoding"] = "none"
+
+        files.append(entry)
+
+snap = {
+    "sha": sha,
+    "branch": branch,
+    "date": date,
+    "files": files
+}
+
+with open("snapshot.json","w",encoding="utf-8") as out:
+    json.dump(snap, out, ensure_ascii=False, separators=(",",":"))
+PY
+
+      - name: Prepare gh-pages structure
+        run: |
+          mkdir -p public/chat/${GITHUB_SHA}
+          cp snapshot.json public/chat/${GITHUB_SHA}/snapshot.json
+          # Also write/update a "latest" pointer for convenience
+          echo "{\"latest\":\"${GITHUB_SHA}\"}" > public/chat/latest.json
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: public
+          keep_files: true
+          enable_jekyll: false
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com

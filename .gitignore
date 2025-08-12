@@ -6,3 +6,5 @@ build/
 *.swp
 *.swo
 .DS_Store
+CMakeFiles/
+orm
