@@ -15,6 +15,8 @@ struct OrmField {
     bool is_indexed = false;
     std::string index_type;
     bool is_unique = false;
+    enum class DefaultKind { None, String, Boolean, Number, Raw };
+    DefaultKind default_kind = DefaultKind::None;  // replaces ad-hoc detection
     std::string default_value;
     std::string index_name;
 };

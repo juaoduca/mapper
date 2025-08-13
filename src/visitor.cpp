@@ -56,14 +56,30 @@ std::string OrmSchemaVisitor::sql_type(const OrmField& f, const std::string& db_
     return "TEXT";
 }
 
-std::string OrmSchemaVisitor::sql_default(const OrmField& f) const {
-    if (f.default_value.empty()) return "";
-    if (f.type == "string" && f.default_value.length() > 2) {
-        // Remove leading/trailing double quotes (from JSON dump), use single quotes for SQL
-        return " DEFAULT '" + f.default_value.substr(1, f.default_value.length() - 2) + "'";
-    } else {
-        return " DEFAULT " + f.default_value;
+static std::string sql_escape_single_quotes(const std::string& s) {
+     std::string out; out.reserve(s.size() + 4);
+     for (char c : s) out += (c == '\'') ? "''" : std::string(1, c);
+     return out;
+ }
+
+ std::string OrmSchemaVisitor::sql_default(const OrmField& f) const {
+    using DK = OrmField::DefaultKind;
+    switch (f.default_kind) {
+        case DK::None:
+            return "";
+        case DK::String: {
+            // Always single-quote; empty string becomes DEFAULT ''
+            return " DEFAULT '" + sql_escape_single_quotes(f.default_value) + "'";
+        }
+        case DK::Boolean:
+        case DK::Number:
+            // Already normalized to true/false or numeric literal
+            return " DEFAULT " + f.default_value;
+        case DK::Raw:
+            // Verbatim (e.g., NULL, JSON text if you allow it)
+            return " DEFAULT " + f.default_value;
     }
+    return "";
 }
 
 std::string BaseDDLVisitor::visit(const OrmSchema& schema) {
@@ -73,8 +89,7 @@ std::string BaseDDLVisitor::visit(const OrmSchema& schema) {
 
 std::string PostgresDDLVisitor::visit(const OrmSchema& schema) {
     std::ostringstream ddl;
-    const std::string& table = schema.name;   // <-- use the new property
-    ddl << "CREATE TABLE "<< table << "(\n";
+    ddl << "CREATE TABLE "<< schema.name << "(\n";
     std::vector<std::string> pk_fields;
     for (size_t i = 0; i < schema.fields.size(); ++i) {
         const auto& f = schema.fields[i];
@@ -128,8 +143,7 @@ std::string PostgresDDLVisitor::visit(const OrmSchema& schema) {
 
 std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
     std::ostringstream ddl;
-    const std::string& table = schema.name;   // <-- use the new property
-    ddl << "CREATE TABLE "<< table << "(\n";
+    ddl << "CREATE TABLE "<< schema.name << "(\n";
     std::vector<std::string> pk_fields;
     for (size_t i = 0; i < schema.fields.size(); ++i) {
         const auto& f = schema.fields[i];

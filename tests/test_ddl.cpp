@@ -41,7 +41,7 @@ TEST_CASE("DDL covers all types and features", "[ddl]") {
     REQUIRE(ddl_pg.find("id TEXT") != std::string::npos); // ULID PK
     REQUIRE(ddl_pg.find("avatar BYTEA") != std::string::npos);
     REQUIRE(ddl_pg.find("active BOOLEAN DEFAULT true") != std::string::npos);
-    REQUIRE(ddl_pg.find("email TEXT NOT NULL UNIQUE DEFAULT """) != std::string::npos);
+    REQUIRE(ddl_pg.find("email TEXT NOT NULL UNIQUE DEFAULT ''") != std::string::npos);
     REQUIRE(ddl_pg.find("score INTEGER NOT NULL DEFAULT 42") != std::string::npos);
     REQUIRE(ddl_pg.find("profile JSONB") != std::string::npos);
     REQUIRE(ddl_pg.find("last_seen TIMESTAMP") != std::string::npos);

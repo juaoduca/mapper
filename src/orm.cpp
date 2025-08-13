@@ -5,8 +5,17 @@
 
 bool OrmSchema::from_json(const nlohmann::json& j, OrmSchema& schema) {
 
-    if (j.contains("name")) {
-        schema.name = j.value("name", "");
+    // --- NEW: resolve schema/table name ---
+    if (auto it = j.find("name"); it != j.end() && it->is_string()) {
+        schema.name = it->get<std::string>();
+    } else if (auto it = j.find("title"); it != j.end() && it->is_string()) {
+        schema.name = it->get<std::string>();
+    } else if (auto it = j.find("$id"); it != j.end() && it->is_string()) {
+        std::string v = it->get<std::string>();
+        auto pos = v.find_last_of("/#");
+        schema.name = (pos == std::string::npos) ? v : v.substr(pos + 1);
+    } else {
+        schema.name = "unnamed";
     }
 
     if (!j.contains("properties")) return false;
@@ -35,7 +44,29 @@ bool OrmSchema::from_json(const nlohmann::json& j, OrmSchema& schema) {
         field.is_indexed = v.value("index", false);
         field.index_type = v.value("indexType", "");
         field.is_unique = v.value("unique", false);
-        field.default_value = v.contains("default") ? v["default"].dump() : "";
+        if (v.contains("default")) {
+          const auto& d = v["default"];
+          if (d.is_string()) {
+              field.default_kind  = OrmField::DefaultKind::String;
+              field.default_value = d.get<std::string>();      // unquoted text
+          } else if (d.is_boolean()) {
+              field.default_kind  = OrmField::DefaultKind::Boolean;
+              field.default_value = d.get<bool>() ? "true" : "false";
+          } else if (d.is_number()) {
+              field.default_kind  = OrmField::DefaultKind::Number;
+              field.default_value = d.dump();                  // numeric literal
+          } else if (d.is_null()) {
+              field.default_kind  = OrmField::DefaultKind::Raw;
+              field.default_value = "NULL";
+          } else {
+              // arrays/objects → store JSON (PG JSONB or text-as-JSON, up to visitor)
+              field.default_kind  = OrmField::DefaultKind::Raw;
+              field.default_value = d.dump();
+          }
+      } else {
+          field.default_kind  = OrmField::DefaultKind::None;
+          field.default_value.clear();
+      }
         field.index_name = v.value("indexName", "");
         schema.fields.push_back(field);
     }
