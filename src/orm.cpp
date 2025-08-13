@@ -4,7 +4,13 @@
 #include <algorithm>
 
 bool OrmSchema::from_json(const nlohmann::json& j, OrmSchema& schema) {
+
+    if (j.contains("name")) {
+        schema.name = j.value("name", "");
+    }
+
     if (!j.contains("properties")) return false;
+
     schema.fields.clear();
     auto props = j["properties"];
     std::vector<std::string> required_list;

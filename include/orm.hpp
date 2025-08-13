@@ -30,6 +30,7 @@ class OrmSchemaVisitor; // forward declaration
 
 class OrmSchema {
 public:
+    std::string name;
     std::vector<OrmField> fields;
     std::vector<OrmIndex> indexes;
 

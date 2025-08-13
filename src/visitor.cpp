@@ -1,7 +1,8 @@
 #include "visitor.hpp"
 
-void OrmSchemaVisitor::visit(const OrmSchema& schema) {
-    print_fields(schema);
+std::string OrmSchemaVisitor::visit(const OrmSchema& schema) {
+    // print_fields(schema);
+    return "";
 }
 
 void OrmSchemaVisitor::print_fields(const OrmSchema& schema) const {
@@ -65,13 +66,15 @@ std::string OrmSchemaVisitor::sql_default(const OrmField& f) const {
     }
 }
 
-void BaseDDLVisitor::visit(const OrmSchema& schema) {
-    print_fields(schema);
+std::string BaseDDLVisitor::visit(const OrmSchema& schema) {
+    // print_fields(schema);
+    return "";
 }
 
-void PostgresDDLVisitor::visit(const OrmSchema& schema) {
+std::string PostgresDDLVisitor::visit(const OrmSchema& schema) {
     std::ostringstream ddl;
-    ddl << "CREATE TABLE users(\n";
+    const std::string& table = schema.name;   // <-- use the new property
+    ddl << "CREATE TABLE "<< table << "(\n";
     std::vector<std::string> pk_fields;
     for (size_t i = 0; i < schema.fields.size(); ++i) {
         const auto& f = schema.fields[i];
@@ -117,12 +120,16 @@ void PostgresDDLVisitor::visit(const OrmSchema& schema) {
         }
         ddl << ");";
     }
-    std::cout << ddl.str() << std::endl;
+
+    ddl << std::endl;
+    std::cout << "PostgresDDLVisitor::visit(): " << ddl.str();
+    return ddl.str();
 }
 
-void SqliteDDLVisitor::visit(const OrmSchema& schema) {
+std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
     std::ostringstream ddl;
-    ddl << "CREATE TABLE users(\n";
+    const std::string& table = schema.name;   // <-- use the new property
+    ddl << "CREATE TABLE "<< table << "(\n";
     std::vector<std::string> pk_fields;
     for (size_t i = 0; i < schema.fields.size(); ++i) {
         const auto& f = schema.fields[i];
@@ -168,14 +175,13 @@ void SqliteDDLVisitor::visit(const OrmSchema& schema) {
         }
         ddl << ");";
     }
-    std::cout << ddl.str() << std::endl;
+    ddl << std::endl;
+    std::cout << "SqliteDDLVisitor::visit(): " << ddl.str();
+    return ddl.str();
 }
 
 
 // Generate DDL for tests or output
-std::string PostgresDDLVisitor::generate_ddl(const OrmSchema& schema, const std::string& table_name) {
-    buffer_.str(""); buffer_.clear();   // Reset buffer
-    table_name_ = table_name;           // Set current table name
-    visit(schema);                      // Call visit, which fills buffer_
-    return buffer_.str();
+std::string PostgresDDLVisitor::generate_ddl(const OrmSchema& schema) {
+    return visit(schema);     // Call visit, which fills buffer_;
 }

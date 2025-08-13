@@ -6,7 +6,7 @@
 class OrmSchemaVisitor {
 public:
     virtual ~OrmSchemaVisitor() = default;
-    virtual void visit(const OrmSchema& schema);
+    virtual std::string visit(const OrmSchema& schema);
 
 public:
     void print_fields(const OrmSchema& schema) const;
@@ -18,18 +18,15 @@ public:
 
 class BaseDDLVisitor : public OrmSchemaVisitor {
 public:
-    std::string generate_ddl(const OrmSchema& schema, const std::string& table_name);
-    void visit(const OrmSchema& schema) override;
+    std::string generate_ddl(const OrmSchema& schema);
+    std::string visit(const OrmSchema& schema) override;
 };
 
 class PostgresDDLVisitor : public OrmSchemaVisitor {
 public:
-    std::string generate_ddl(const OrmSchema& schema, const std::string& table_name);
+    std::string generate_ddl(const OrmSchema& schema);
+    std::string visit(const OrmSchema& schema) override;
 
-    // Implement visit pattern:
-    void visit(const OrmSchema& schema) override;
-
-    // Use buffer_ for output, and table_name_ for the current table
 private:
     std::ostringstream buffer_;
     std::string table_name_;
@@ -37,6 +34,6 @@ private:
 
 class SqliteDDLVisitor : public OrmSchemaVisitor {
 public:
-    std::string generate_ddl(const OrmSchema& schema, const std::string& table_name);
-    void visit(const OrmSchema& schema) override;
+    std::string generate_ddl(const OrmSchema& schema);
+    std::string  visit(const OrmSchema& schema) override;
 };

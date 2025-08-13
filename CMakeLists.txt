@@ -13,7 +13,8 @@ target_link_libraries(orm nlohmann_json::nlohmann_json fcgi pq sqlite3)
 
 # Catch2 for unit testing (single header)
 enable_testing()
-add_executable(tests tests/test_schemamanager.cpp tests/test_ddl.cpp ${SOURCES})
-target_include_directories(tests PRIVATE include tests/external)
-target_link_libraries(tests nlohmann_json::nlohmann_json sqlite3)
-add_test(NAME OrmSchemaManagerTests COMMAND tests)
+add_executable(map_tests tests/test_schemamanager.cpp tests/test_ddl.cpp ${SOURCES})
+target_include_directories(map_tests PRIVATE include tests/external)
+target_link_libraries(map_tests nlohmann_json::nlohmann_json sqlite3)
+add_test(NAME OrmSchemaManagerTests COMMAND map_tests)
+

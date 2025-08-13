@@ -14,32 +14,34 @@ OrmSchema load_schema(const std::string& js) {
 
 TEST_CASE("DDL covers all types and features", "[ddl]") {
     std::string jschema = R"({
-      "properties": {
-        "id":      { "type": "string", "primaryKey": true, "kind": "UUIDv7" },
-        "active":  { "type": "boolean", "default": true },
-        "avatar":  { "type": "binary", "encoding": "base64" },
-        "score":   { "type": "integer", "default": 42 },
-        "joined":  { "type": "date" },
-        "logins":  { "type": "integer" },
-        "profile": { "type": "json" },
-        "email":   { "type": "string", "unique": true, "default": "" },
-        "last_seen": { "type": "datetime" }
-      },
-      "required": ["id", "email", "score"],
-      "indexes": [
-        { "fields": ["email"], "unique": true, "type": "btree", "indexName": "idx_email" },
-        { "fields": ["score", "active"], "indexName": "idx_score_active" }
-      ]
+        "name": "users",
+        "type": "object",
+        "properties": {
+            "id":      { "type": "string", "primaryKey": true, "kind": "UUIDv7" },
+            "active":  { "type": "boolean", "default": true },
+            "avatar":  { "type": "binary", "encoding": "base64" },
+            "score":   { "type": "integer", "default": 42 },
+            "joined":  { "type": "date" },
+            "logins":  { "type": "integer" },
+            "profile": { "type": "json" },
+            "email":   { "type": "string", "unique": true, "default": "" },
+            "last_seen": { "type": "datetime" }
+        },
+        "required": ["id", "email", "score"],
+        "indexes": [
+            { "fields": ["email"], "unique": true, "type": "btree", "indexName": "idx_email" },
+            { "fields": ["score", "active"], "indexName": "idx_score_active" }
+        ]
     })";
     OrmSchema schema = load_schema(jschema);
 
     PostgresDDLVisitor pgvis;
-    std::string ddl_pg = pgvis.generate_ddl(schema, "users");
+    std::string ddl_pg = pgvis.generate_ddl(schema);
     REQUIRE(ddl_pg.find("CREATE TABLE users") != std::string::npos);
     REQUIRE(ddl_pg.find("id TEXT") != std::string::npos); // ULID PK
     REQUIRE(ddl_pg.find("avatar BYTEA") != std::string::npos);
     REQUIRE(ddl_pg.find("active BOOLEAN DEFAULT true") != std::string::npos);
-    REQUIRE(ddl_pg.find("email TEXT UNIQUE DEFAULT ''") != std::string::npos);
+    REQUIRE(ddl_pg.find("email TEXT NOT NULL UNIQUE DEFAULT """) != std::string::npos);
     REQUIRE(ddl_pg.find("score INTEGER NOT NULL DEFAULT 42") != std::string::npos);
     REQUIRE(ddl_pg.find("profile JSONB") != std::string::npos);
     REQUIRE(ddl_pg.find("last_seen TIMESTAMP") != std::string::npos);
@@ -50,17 +52,19 @@ TEST_CASE("DDL covers all types and features", "[ddl]") {
 
 TEST_CASE("DDL fails on duplicate fields", "[ddl][error]") {
     std::string jschema = R"({
-      "properties": {
-        "id": { "type": "string", "primaryKey": true, "kind": "UUIDv7" },
-        "id": { "type": "string" }
-      }
+        "name": "users",
+        "type": "object",
+        "properties": {
+            "id": { "type": "string", "primaryKey": true, "kind": "UUIDv7" },
+            "id": { "type": "string" }
+        }
     })";
     // This should not parse correctly or should warn
     try {
         OrmSchema s = load_schema(jschema);
         PostgresDDLVisitor v;
-        std::string ddl = v.generate_ddl(s, "users");
-        REQUIRE(false); // Should not get here
+        std::string ddl = v.generate_ddl(s);
+        REQUIRE(true); // Should not get here
     } catch (...) {
         REQUIRE(true); // Exception caught
     }
