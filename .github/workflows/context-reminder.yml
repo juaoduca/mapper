@@ -1,0 +1,22 @@
+name: Check CONTEXT.md Updated
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  check-context:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check if CONTEXT.md changed
+        run: |
+          if git diff --name-only HEAD^ HEAD | grep -q '^CONTEXT.md$'; then
+            echo "✅ CONTEXT.md updated in this commit."
+          else
+            echo "::warning file=CONTEXT.md,line=1::CONTEXT.md not updated in this commit. Consider updating it to reflect recent changes."
+          fi
