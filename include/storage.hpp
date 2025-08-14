@@ -4,12 +4,17 @@
 #include <unordered_map>
 #include <nlohmann/json.hpp>
 #include "orm.hpp"
+#include "visitor.hpp"
+#include "connection.hpp"
 
 // Storage: simplified for SQLite; adapt for Postgres if needed.
 class Storage {
 public:
-    Storage(const std::string& db_path);
-    ~Storage();
+    Storage(const std::string& db_path, Dialect dialect); // constructor
+    ~Storage(); // destructor
+
+    bool exec(std::string_view sql); // exec SQL direct to DB
+    bool init_catalog(); // initializecatalog table to hold JSONSchemas for all tables in ORM
 
     // Insert: generates ULID if not in data; returns PK used.
     std::string insert(const std::string& table, nlohmann::json& data, const std::string& user = "", const std::string& context = "");
@@ -22,6 +27,6 @@ public:
 
     // (Schema and cache: can be added here)
 private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
+    std::unique_ptr<OrmSchemaVisitor> visitor_; // holds the correct SQL generator
+    std::unique_ptr<Connection> conn_;
 };

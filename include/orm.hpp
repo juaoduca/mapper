@@ -5,6 +5,8 @@
 
 enum class IdKind { UUIDv7, HighLow, Snowflake, DBSerial, TBSerial };
 
+enum class Dialect {SQLite, Postgres};
+
 struct OrmField {
     std::string name;
     std::string type;
