@@ -1,8 +1,7 @@
-# From repo root
-echo '# Project Context – juaoduca/mapper
+# Project Context – juaoduca/mapper
 
 ## Last Updated
-2025-08-13
+2025-08-14
 
 ## Repo Sync
 - Latest pointer: https://juaoduca.github.io/mapper/chat/latest.json
@@ -11,6 +10,8 @@ echo '# Project Context – juaoduca/mapper
 ## Current State
 - Repo configured with “snapshot JSON” GitHub Action to sync latest commit.
 - Unit tests all passing.
+- Storage layer refactored to support multiple SQL dialects via `Connection` abstraction.
+- Catalog table (`schema`) initialization added to track JSONSchemas and versions.
 
 ## Completed Work
 1. **Schema name support**
@@ -30,11 +31,35 @@ echo '# Project Context – juaoduca/mapper
    - Adjusted test schemas to include `"name": "users"`.
    - All tests pass after changes.
 
+4. **Catalog table for schema tracking**
+   - Defined hardcoded JSONSchema for a table named `"schema"`, with fields:
+     - `name` (PK, string, non-nullable)
+     - `version` (integer, default 1, non-nullable)
+     - `json_schema` (string, non-nullable)
+   - Added `Storage::init_catalog()` to create the catalog table if it doesn’t exist using current dialect visitor.
+
+5. **Connection abstraction**
+   - Created `Connection` base class with pure virtual methods:
+     - `connect(path)` / `disconnect()`
+     - `execDDL(sql) -> bool`
+     - `execDML(sql, params) -> int`
+     - `get(sql, params) -> result` (future use)
+   - Added `ConnectionSQLite` and placeholder `ConnectionPostgres` subclasses.
+   - Moved DB execution logic in `Storage` to use `Connection` methods.
+
+6. **Storage refactor**
+   - `Storage` now:
+     - Holds a single `OrmSchemaVisitor` instance for the chosen dialect (no repeated dialect checks).
+     - Holds a `Connection` instance for SQL execution.
+     - Constructor picks the correct visitor + connection based on `Dialect` enum.
+   - Updated `insert`, `update`, and `delete_row` to delegate execution to `Connection`.
+   - Preserved ULID auto-generation for `id` when inserting.
+
 ## Next Steps
-- [ ] Decide on next feature or refactor.
-- [ ] Keep `CONTEXT.md` updated after each block of work.
+- [ ] Implement PostgreSQL `ConnectionPostgres` using `libpq`.
+- [ ] Implement `get()` in `Connection` for SELECT queries.
+- [ ] Add caching and version checks when loading JSONSchemas from the catalog.
+- [ ] Add unit tests for `init_catalog()` and `Storage` CRUD operations.
 
 ## Usage in New Chats
-When starting a new chat, paste this file or give its snapshot URL so I can work from the latest state without loading old conversations.' > CONTEXT.md
-
-
+When starting a new chat, paste this file or give its snapshot URL so I can work from the latest state without loading old conversations.
