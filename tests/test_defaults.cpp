@@ -19,19 +19,21 @@ TEST_CASE("sql_default emits correct SQL for all DefaultKind variants (Postgres 
             "s":     { "type": "string",  "default": "abc" },
             "b":     { "type": "boolean", "default": true },
             "n":     { "type": "number",  "default": 42 },
+            "t":     { "type": "string",  "default": "" },
             "rnull": { "type": "string",  "default": null }
         },
         "required": ["id"]
     })");
 
     PostgresDDLVisitor pg;
-    auto ddl_pg = pg.generate_ddl(schema);
+    auto ddl_pg = pg.visit(schema);
     REQUIRE(ddl_pg.find("CREATE TABLE users(") != std::string::npos);
     REQUIRE(ddl_pg.find("s text") != std::string::npos || ddl_pg.find("s varchar") != std::string::npos || ddl_pg.find("s ") != std::string::npos);
     REQUIRE(ddl_pg.find("DEFAULT 'abc'") != std::string::npos);
     REQUIRE(ddl_pg.find("DEFAULT true") != std::string::npos);
     REQUIRE(ddl_pg.find("DEFAULT 42") != std::string::npos);
     REQUIRE(ddl_pg.find("DEFAULT NULL") != std::string::npos);
+    REQUIRE(ddl_pg.find("DEFAULT ''") != std::string::npos);
 
     SqliteDDLVisitor sq;
     auto ddl_sq = sq.visit(schema);
@@ -41,4 +43,5 @@ TEST_CASE("sql_default emits correct SQL for all DefaultKind variants (Postgres 
     REQUIRE(ddl_sq.find("DEFAULT true") != std::string::npos);
     REQUIRE(ddl_sq.find("DEFAULT 42") != std::string::npos);
     REQUIRE(ddl_sq.find("DEFAULT NULL") != std::string::npos);
-});
+    REQUIRE(ddl_pg.find("DEFAULT ''") != std::string::npos);
+}
