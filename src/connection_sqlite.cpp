@@ -1,8 +1,8 @@
-#include "connection.hpp"
+#include "sqlconnection.hpp"
 #include <sqlite3.h>
 #include <stdexcept>
 
-class SQLiteConnection final : public Connection {
+class SQLiteConnection final : public SQLConnection {
 public:
     ~SQLiteConnection() override { disconnect(); }
 
@@ -91,6 +91,6 @@ private:
 };
 
 // Factory
-ConnectionPtr make_sqlite_connection() {
+PSQLConnection make_sqlite_connection() {
     return std::make_unique<SQLiteConnection>();
 }

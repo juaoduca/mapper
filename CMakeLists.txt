@@ -42,9 +42,14 @@ endif()
 # --- Unit tests ---
 enable_testing()
 add_executable(map_tests tests/test_schemamanager.cpp tests/test_ddl.cpp ${SOURCES})
+
 target_include_directories(map_tests PRIVATE include tests/external)
 target_compile_definitions(map_tests PRIVATE HAVE_POSTGRESQL=$<BOOL:${HAVE_POSTGRESQL}>)
 target_link_libraries(map_tests PRIVATE nlohmann_json::nlohmann_json sqlite3)
+
+# in root CMakeLists.txt, after the map_tests target is defined
+target_sources(map_tests PRIVATE tests/test_dbpool.cpp)
+
 
 if (HAVE_POSTGRESQL)
     target_include_directories(map_tests PRIVATE ${PostgreSQL_INCLUDE_DIRS})
@@ -52,3 +57,5 @@ if (HAVE_POSTGRESQL)
 endif()
 
 add_test(NAME OrmSchemaManagerTests COMMAND map_tests)
+
+

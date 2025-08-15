@@ -1,4 +1,4 @@
-#include "connection.hpp"
+#include "sqlconnection.hpp"
 #include <libpq-fe.h>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
@@ -7,7 +7,7 @@
 #include <vector>
 
 
-class PgConnection final : public Connection {
+class PgConnection final : public SQLConnection {
 public:
     ~PgConnection() override { disconnect(); }
 
@@ -99,6 +99,6 @@ private:
 };
 
 // Factory
-ConnectionPtr make_postgres_connection() {
+PSQLConnection make_postgres_connection() {
     return std::make_unique<PgConnection>();
 }

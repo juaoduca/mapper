@@ -5,9 +5,9 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 
-class Connection {
+class SQLConnection {
 public:
-    virtual ~Connection() = default;
+    virtual ~SQLConnection() = default;
 
     // Connect using a DSN / path (SQLite: filename; Postgres: conninfo).
     virtual void connect(const std::string& dsn) = 0;
@@ -30,4 +30,4 @@ public:
 };
 
 // Helpers for ownership
-using ConnectionPtr = std::unique_ptr<Connection>;
+using PSQLConnection = std::unique_ptr<SQLConnection>;

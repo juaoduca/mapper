@@ -5,7 +5,7 @@
 #include <nlohmann/json.hpp>
 #include "orm.hpp"
 #include "visitor.hpp"
-#include "connection.hpp"
+#include "sqlconnection.hpp"
 
 // Storage: simplified for SQLite; adapt for Postgres if needed.
 class Storage {
@@ -28,5 +28,5 @@ public:
     // (Schema and cache: can be added here)
 private:
     std::unique_ptr<OrmSchemaVisitor> visitor_; // holds the correct SQL generator
-    std::unique_ptr<Connection> conn_;
+    std::unique_ptr<SQLConnection> conn_;
 };

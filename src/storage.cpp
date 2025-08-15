@@ -1,6 +1,6 @@
 #include "storage.hpp"
 #include "ulid.hpp"
-#include "connection.hpp"
+#include "sqlconnection.hpp"
 #include <stdexcept>
 #include <sstream>
 #include <nlohmann/json.hpp>
@@ -8,9 +8,9 @@
 #include <orm.hpp>
 
 // Forward declarations for connection factories
-ConnectionPtr make_sqlite_connection();
+PSQLConnection make_sqlite_connection();
 #if HAVE_POSTGRESQL
-ConnectionPtr make_postgres_connection();
+PSQLConnection make_postgres_connection();
 #endif
 
 using nlohmann::json;
