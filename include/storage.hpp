@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 #include "orm.hpp"
 #include "visitor.hpp"
+#include "dbpool.hpp"
 #include "sqlconnection.hpp"
 
 using OrmSchemaMap = std::map<std::string, std::unique_ptr<OrmSchema>>;
@@ -13,39 +14,50 @@ using OrmSchemaMap = std::map<std::string, std::unique_ptr<OrmSchema>>;
 class Storage
 {
 public:
-    Storage(const std::string &db_path, Dialect dialect) // constructor
-        : catalog(OrmSchemaMap()) {};
+    Storage(const std::string &db_path, Dialect dialect); // constructor
     ~Storage(); // destructor
 
     /**
     * @brief initialize catalog table to hold JSONSchemas for all tables in ORM
     *
-    * This method performs the following steps:
-    * 1. Parses the JSONSchema string for the hardcoded schema_catalog string
-    * 2. Create and Hydrate an OrmSchema object with schema_catalog JSON Object
-    * 2. call DDLVistor to produce the create table script for schema_catalog
-    * 3. call exec() method to create the table on DB
-    * 4. call addSchema() to add the schema to the in-memory catalog.
-    * 5. repeat the above steps for the hardcoded schema_versions string.
+    * This method performs the following steps:\n
+    * 1. Parses the JSONSchema string for the hardcoded schema_catalog string \n
+    * 2. Create and Hydrate an OrmSchema object with schema_catalog JSON Object \n
+    * 2. call DDLVistor to produce the create table script for schema_catalog \n
+    * 3. call exec() method to create the table on DB \n
+    * 4. call addSchema() to add the schema to the in-memory catalog. \n
+    * 5. repeat the above steps for the hardcoded schema_versions string. \n
     *
     * @return The index of the schema in the catalog map.
     */
     bool init_catalog();
 
     /**
-    * @brief Adds a schema to the system.
+    * @brief Adds a JSONSchema string to the system.
     *
     * This method performs the following steps:
     * 1. Parses the JSONSchema string to a SJON Object
     * 2. Create an OrmSchema object an hydrate it with JSONSchema Object
-    * 3. Adds the OrmSchema to the in-memory catalog.
-    * 4. Writes the schema to the database if @p db is true.
+    * 3. calls addSchema() passing the OrmSchema object
     *
     * @param JSONSchema The JSONSchema string to be added.
     * @param db If true, also adds the schema to the DB catalog table.
-    * @return The index of the schema in the catalog map.
+    * @return the index of the inserted object on the in-memory catalog;
     */
     int addSchema(std::string &JSONSchema, bool db = true);
+
+    /**
+    * @brief Adds a schema object to the system.
+    *
+    * This method performs the following steps:
+    * 1. Adds the OrmSchema to the in-memory catalog.
+    * 2. Writes the schema to the database if @p db is true.
+    *
+    * @param JSONSchema The JSONSchema string to be added.
+    * @param db If true, also adds the schema to the DB catalog table.
+    * @return A pointer to the instance of OrmSchema inserted on in-memory catalog;
+    */
+    int addSchema(OrmSchema& schema, bool db = true);
 
     /**
     * @brief Removes a schema from system
@@ -70,7 +82,8 @@ public:
     */
     bool getSchema(std::string &name, OrmSchema& schema);
 
-    bool exec(std::string_view sql); // executes SQL direct to DB
+    bool execDDL(std::string sql); // executes SQL direct to DB
+    int execDML(std::string sql, const std::vector<std::string>& params = {}); // executes SQL direct to DB
 
     /**
     * @brief Insert or Upsert data into Schema table
@@ -94,7 +107,7 @@ public:
     * @param context a pointer to context infor for track and audit
     * @return pointer to OrmSchema instance
     */
-    std::string insert(const std::string &name, nlohmann::json &data, const std::string &user = "", const std::string &context = "");
+    std::string insert(const std::string &schema, nlohmann::json &data, const std::string &user="", const std::string &context="");
 
     /**
     * @brief Update data into Schema table
@@ -140,6 +153,9 @@ public:
 
 private:
     std::unique_ptr<DDLVisitor> visitor_; // holds the correct SQL generator
-    std::unique_ptr<SQLConnection> conn_;
     OrmSchemaMap catalog;
+    std::shared_ptr<pool::DbPool> dbpool_;
+    std::unique_ptr<DDLVisitor> ddlVisitor_;
+    std::unique_ptr<DMLVisitor> dmlVisitor_;
+    std::unique_ptr<QRYVisitor> qryVisitor_;
 };

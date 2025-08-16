@@ -41,4 +41,4 @@ cmake --build . -j
 echo "Running tests..."
 ctest --output-on-failure
 
-echo "Script finished successfully.
+echo "Script finished successfully."

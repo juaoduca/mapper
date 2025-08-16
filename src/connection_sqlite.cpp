@@ -21,7 +21,7 @@ public:
         if (db_) { sqlite3_close(db_); db_ = nullptr; }
     }
 
-    bool execDDL(std::string_view sql) override {
+    bool execDDL(std::string sql) override {
         char* err = nullptr;
         int rc = sqlite3_exec(db_, std::string(sql).c_str(), nullptr, nullptr, &err);
         if (rc != SQLITE_OK) {
@@ -31,7 +31,7 @@ public:
         return true;
     }
 
-    int execDML(std::string_view sql,
+    int execDML(std::string sql,
                 const std::vector<std::string>& params) override {
         sqlite3_stmt* stmt = nullptr;
         if (sqlite3_prepare_v2(db_, std::string(sql).c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -50,7 +50,7 @@ public:
     }
 
     std::vector<nlohmann::json>
-    get(std::string_view sql, const std::vector<std::string>& params) override {
+    get(std::string sql, const std::vector<std::string>& params) override {
         sqlite3_stmt* stmt = nullptr;
         if (sqlite3_prepare_v2(db_, std::string(sql).c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
             throw std::runtime_error("SQLite prepare failed: " + std::string(sqlite3_errmsg(db_)));

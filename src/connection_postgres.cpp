@@ -26,7 +26,7 @@ public:
         if (conn_) { PQfinish(conn_); conn_ = nullptr; }
     }
 
-    bool execDDL(std::string_view sql) override {
+    bool execDDL(std::string sql) override {
         PGresult* r = PQexec(conn_, std::string(sql).c_str());
         if (!r) return false;
         auto status = PQresultStatus(r);
@@ -35,7 +35,7 @@ public:
         return ok;
     }
 
-    int execDML(std::string_view sql,
+    int execDML(std::string sql,
                 const std::vector<std::string>& params) override {
         std::vector<const char*> vals; vals.reserve(params.size());
         for (auto& p : params) vals.push_back(p.c_str());
@@ -60,7 +60,7 @@ public:
     }
 
     std::vector<nlohmann::json>
-    get(std::string_view sql, const std::vector<std::string>& params) override {
+    get(std::string sql, const std::vector<std::string>& params) override {
         std::vector<const char*> vals; vals.reserve(params.size());
         for (auto& p : params) vals.push_back(p.c_str());
 

@@ -33,14 +33,16 @@ bool OrmSchema::from_json(const nlohmann::json& j, OrmSchema& schema) {
         field.type = v.value("type", "string");
         field.encoding = v.value("encoding", "");
         field.required = (std::find(required_list.begin(), required_list.end(), field.name) != required_list.end());
-        field.is_id = v.value("primaryKey", false);
-        std::string kind_str = v.value("kind", "UUIDv7");
-        IdKind kind = IdKind::UUIDv7;
-        if (kind_str == "HighLow") kind = IdKind::HighLow;
-        else if (kind_str == "Snowflake") kind = IdKind::Snowflake;
-        else if (kind_str == "DBSerial") kind = IdKind::DBSerial;
-        else if (kind_str == "TBSerial") kind = IdKind::TBSerial;
-        if (field.is_id) field.id_kind = kind;
+        field.is_id = v.value("idprop", false);
+        if (field.is_id) {
+            std::string kind_str = v.value("idkind", "uuidv7");
+            IdKind kind = IdKind::UUIDv7;
+            if (kind_str == "highlow") kind = IdKind::HighLow;
+            else if (kind_str == "snowflake") kind = IdKind::Snowflake;
+            else if (kind_str == "dbserial") kind = IdKind::DBSerial;
+            else if (kind_str == "tbserial") kind = IdKind::TBSerial;
+            field.id_kind = kind;
+        }
         field.is_indexed = v.value("index", false);
         field.index_type = v.value("indexType", "");
         field.is_unique = v.value("unique", false);
@@ -89,5 +91,5 @@ bool OrmSchema::from_json(const nlohmann::json& j, OrmSchema& schema) {
 }
 
 void OrmSchema::accept(DDLVisitor& visitor) const {
-    visitor.visit(*this);
+    visitor.visit(static_cast<const void*>(this));
 }

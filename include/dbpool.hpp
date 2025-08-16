@@ -6,7 +6,7 @@
 
 using PConn = std::shared_ptr<SQLConnection>;
 
-namespace mapper {
+namespace pool {
 
 enum class DbIntent { Read, Write };
 enum class PoolAcquireError { Timeout, Shutdown };
@@ -22,20 +22,14 @@ struct AcquirePolicy {
   std::chrono::milliseconds max_lease_time{0};      // 0 = disabled (tests/guardrail)
 };
 
-// --------- Connections (polymorphic) ----------
-// class SQLConnection {
-// public:
-//   virtual ~SQLConnection() = default;
-//   // optional: health/metadata APIs; not needed for tests right now.
-// };
 
 // Forward decl
-class IDbPool;
+class DbPool;
 
 // --------- RAII Lease (no templates) ----------
 class Lease {
 public:
-  Lease(IDbPool* owner, PConn conn, DbIntent intent)
+  Lease(DbPool* owner, PConn conn, DbIntent intent)
   : owner_(owner), conn_(std::move(conn)), intent_(intent) {}
 
   Lease(const Lease&) = delete; // disable copy constructor
@@ -63,17 +57,17 @@ private:
     intent_ = o.intent_;
   }
 
-  IDbPool* owner_{nullptr};
+  DbPool* owner_{nullptr};
   std::shared_ptr<SQLConnection> conn_{};
   DbIntent intent_{DbIntent::Read};
 
-  friend class IDbPool;
+  friend class DbPool;
 };
 
 // --------- Pool interface (polymorphic) ----------
-class IDbPool {
+class DbPool {
 public:
-  virtual ~IDbPool() = default;
+  virtual ~DbPool() = default;
 
   struct AcquireResult {
     bool ok{false};

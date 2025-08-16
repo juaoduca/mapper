@@ -1,7 +1,8 @@
 #include "visitor.hpp"
 
-std::string DDLVisitor::visit(const OrmSchema& schema) {
-    // print_fields(schema);
+std::string DDLVisitor::visit(const void* aSchema) {
+    OrmSchema& schema = (OrmSchema&)aSchema;
+    print_fields(schema);
     return "";
 }
 
@@ -97,7 +98,8 @@ std::string PgDDLVisitor::sql_type(const OrmField& f) const {
     return "TEXT";
 }
 
-std::string PgDDLVisitor::visit(const OrmSchema& schema) {
+std::string PgDDLVisitor::visit(const void* aSchema) {
+    OrmSchema& schema = (OrmSchema&)aSchema;
     std::ostringstream ddl;
     ddl << "CREATE TABLE "<< schema.name << "(\n";
     std::vector<std::string> pk_fields;
@@ -165,7 +167,8 @@ std::string SqliteDDLVisitor::sql_type(const OrmField& f) const {
     return "TEXT";
 }
 
-std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
+std::string SqliteDDLVisitor::visit(const void* aSchema) {
+    OrmSchema& schema = (OrmSchema&)aSchema;
     std::ostringstream ddl;
     ddl << "CREATE TABLE "<< schema.name << "(\n";
     std::vector<std::string> pk_fields;
@@ -221,5 +224,5 @@ std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
 
 // Generate DDL for tests or output
 std::string PgDDLVisitor::generate_ddl(const OrmSchema& schema) {
-    return visit(schema);     // Call visit, which fills buffer_;
+    return visit(static_cast<const void*>(&schema));
 }

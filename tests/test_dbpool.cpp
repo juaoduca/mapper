@@ -12,12 +12,12 @@
 #include "sqlconnection.hpp"
 
 using namespace std::chrono_literals;
-using mapper::AcquirePolicy;
-using mapper::DbIntent;
-using mapper::IDbPool;
-using mapper::Lease;
-using mapper::PoolAcquireError;
-using mapper::PoolStats;
+using pool::AcquirePolicy;
+using pool::DbIntent;
+using pool::DbPool;
+using pool::Lease;
+using pool::PoolAcquireError;
+using pool::PoolStats;
 
 // ---------- Fake connections ----------
 class FakeConn : public SQLConnection
@@ -36,17 +36,17 @@ public:
         // No-op for fake
     }
 
-    bool execDDL(std::string_view sql) override
+    bool execDDL(std::string sql) override
     {
         return true; // Always succeed
     }
 
-    int execDML(std::string_view sql, const std::vector<std::string> &params) override
+    int execDML(std::string sql, const std::vector<std::string> &params) override
     {
         return 1; // Pretend 1 row affected
     }
 
-    std::vector<nlohmann::json> get(std::string_view sql, const std::vector<std::string> &params) override
+    std::vector<nlohmann::json> get(std::string sql, const std::vector<std::string> &params) override
     {
         return {}; // Return empty result set
     }
@@ -56,7 +56,7 @@ private:
 };
 
 // ---------- Deterministic FakePool (no templates) ----------
-class FakePool : public IDbPool
+class FakePool : public DbPool
 {
 public:
     FakePool(std::size_t readCap, std::size_t writeCap, bool writerPriority, AcquirePolicy pol)

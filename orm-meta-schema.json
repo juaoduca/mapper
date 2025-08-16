@@ -32,6 +32,11 @@
             "type": "object",
             "description": "ORM-only field keywords (standard JSON Schema keywords remain untouched).",
             "properties": {
+                "type": {
+                    "type": "string",
+                    "description": "define the data type of the prop / field",
+                    "enum": ["string", "integer", "number", "boolean", "date", "time", "datetime", "timestamp", "json", "object"]
+                },
                 "idprop": {
                     "type": "boolean",
                     "description": "Marks this prop as the ID property or table primary key.",
@@ -40,7 +45,7 @@
                 "idkind": {
                     "type": "string",
                     "description": "ID generator for primary keys (overrides table-level `idkind`).",
-                    "enum": ["UUIDv7", "HighLow", "Snowflake", "DBSerial", "TBSerial"],
+                    "enum": ["uuidv7", "higlow", "snowflake", "dbserial", "tbserial"],
                     "default": "UUIDv7"
                 },
                 "encoding": {

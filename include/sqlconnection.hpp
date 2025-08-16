@@ -16,16 +16,16 @@ public:
     virtual void disconnect() noexcept = 0;
 
     // DDL: returns true on success, false on failure.
-    virtual bool execDDL(std::string_view sql) = 0;
+    virtual bool execDDL(std::string sql) = 0;
 
     // DML (INSERT/UPDATE/DELETE/UPSERT):
     // returns affected rows; parameters are positional.
-    virtual int execDML(std::string_view sql,
+    virtual int execDML(std::string sql,
                         const std::vector<std::string>& params = {}) = 0;
 
     // SELECT: returns rows as JSON objects (colName -> value as string/JSON).
     virtual std::vector<nlohmann::json>
-    get(std::string_view sql,
+    get(std::string sql,
         const std::vector<std::string>& params = {}) = 0;
 };
 
