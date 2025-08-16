@@ -35,7 +35,7 @@ TEST_CASE("DDL covers all types and features", "[ddl]") {
     })";
     OrmSchema schema = load_schema(jschema);
 
-    PostgresDDLVisitor pgvis;
+    PgDDLVisitor pgvis;
     std::string ddl_pg = pgvis.generate_ddl(schema);
     REQUIRE(ddl_pg.find("CREATE TABLE users") != std::string::npos);
     REQUIRE(ddl_pg.find("id TEXT") != std::string::npos); // ULID PK
@@ -43,7 +43,7 @@ TEST_CASE("DDL covers all types and features", "[ddl]") {
     REQUIRE(ddl_pg.find("active BOOLEAN DEFAULT true") != std::string::npos);
     REQUIRE(ddl_pg.find("email TEXT NOT NULL UNIQUE DEFAULT ''") != std::string::npos);
     REQUIRE(ddl_pg.find("score INTEGER NOT NULL DEFAULT 42") != std::string::npos);
-    REQUIRE(ddl_pg.find("profile JSONB") != std::string::npos);
+    REQUIRE(ddl_pg.find("profile JSON") != std::string::npos);
     REQUIRE(ddl_pg.find("last_seen TIMESTAMP") != std::string::npos);
     REQUIRE(ddl_pg.find("PRIMARY KEY (id)") != std::string::npos);
     REQUIRE(ddl_pg.find("CREATE UNIQUE INDEX idx_email ON users (email);") != std::string::npos);
@@ -62,7 +62,7 @@ TEST_CASE("DDL fails on duplicate fields", "[ddl][error]") {
     // This should not parse correctly or should warn
     try {
         OrmSchema s = load_schema(jschema);
-        PostgresDDLVisitor v;
+        PgDDLVisitor v;
         std::string ddl = v.generate_ddl(s);
         REQUIRE(true); // Should not get here
     } catch (...) {

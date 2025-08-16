@@ -24,7 +24,7 @@ Storage::Storage(const std::string& db_path, Dialect dialect) {
             break;
         case Dialect::Postgres:
 #if HAVE_POSTGRESQL
-            visitor_ = std::make_unique<PostgresDDLVisitor>();
+            visitor_ = std::make_unique<PgDDLVisitor>();
             conn_ = make_postgres_connection();
 #else
             throw std::runtime_error("PostgreSQL support not built in");
@@ -51,11 +51,11 @@ bool Storage::init_catalog() {
       "version": 1,
       "type": "object",
       "properties": {
+        "id":          { "type": "id", "Kind": "uuidv7" }
         "name":        { "type": "string",  "nullable": false },
         "version":     { "type": "integer", "nullable": false, "default": 1 },
         "json_schema": { "type": "string",  "nullable": false }
-      },
-      "primaryKey": ["name"]
+      }
     }
     )JSON";
 
@@ -120,7 +120,7 @@ void Storage::update(const std::string& table, const json& data,
     conn_->execDML(sql, params);
 }
 
-void Storage::delete_row(const std::string& table, const json& pk_data,
+void Storage::del(const std::string& table, const json& pk_data,
                          const std::string& /*user*/, const std::string& /*context*/) {
     if (!pk_data.contains("id")) throw std::runtime_error("Delete requires PK field 'id'");
     std::string id = pk_data["id"];

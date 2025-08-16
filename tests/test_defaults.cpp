@@ -25,7 +25,7 @@ TEST_CASE("sql_default emits correct SQL for all DefaultKind variants (Postgres 
         "required": ["id"]
     })");
 
-    PostgresDDLVisitor pg;
+    PgDDLVisitor pg;
     auto ddl_pg = pg.visit(schema);
     REQUIRE(ddl_pg.find("CREATE TABLE users(") != std::string::npos);
     REQUIRE(ddl_pg.find("s text") != std::string::npos || ddl_pg.find("s varchar") != std::string::npos || ddl_pg.find("s ") != std::string::npos);

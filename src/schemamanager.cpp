@@ -19,10 +19,10 @@ std::vector<std::string> SchemaManager::plan_migration(const std::string& db_eng
         auto it = old_fields.find(name);
         if (it == old_fields.end()) {
             // ADD COLUMN
-            OrmSchemaVisitor* v = nullptr;
-            if (db_engine == "postgres") v = new PostgresDDLVisitor();
+            DDLVisitor* v = nullptr;
+            if (db_engine == "postgres") v = new PgDDLVisitor();
             else v = new SqliteDDLVisitor();
-            std::string col_sql = nf.name + " " + v->sql_type(nf, db_engine);
+            std::string col_sql = nf.name + " " + v->sql_type(nf);
             if (nf.required) col_sql += " NOT NULL";
             if (nf.is_unique) col_sql += " UNIQUE";
             col_sql += v->sql_default(nf);

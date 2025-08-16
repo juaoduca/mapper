@@ -20,7 +20,7 @@ TEST_CASE("Schema name is picked from 'name' and used in CREATE TABLE", "[name]"
         "required": ["id"]
     })");
 
-    PostgresDDLVisitor pg;
+    PgDDLVisitor pg;
     auto ddl_pg = pg.generate_ddl(schema);
     REQUIRE(ddl_pg.find("CREATE TABLE orders(") != std::string::npos);
 

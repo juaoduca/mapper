@@ -1,11 +1,11 @@
 #include "visitor.hpp"
 
-std::string OrmSchemaVisitor::visit(const OrmSchema& schema) {
+std::string DDLVisitor::visit(const OrmSchema& schema) {
     // print_fields(schema);
     return "";
 }
 
-void OrmSchemaVisitor::print_fields(const OrmSchema& schema) const {
+void DDLVisitor::print_fields(const OrmSchema& schema) const {
     std::cout << "Fields in schema:" << std::endl;
     for (const auto& f : schema.fields) {
         std::cout << "  - " << f.name << " (" << f.type << ")";
@@ -13,7 +13,7 @@ void OrmSchemaVisitor::print_fields(const OrmSchema& schema) const {
             std::cout << " [encoding: " << f.encoding << "]";
         if (f.required)
             std::cout << " [required]";
-        if (f.is_primary_key)
+        if (f.is_id)
             std::cout << " [PRIMARY KEY]";
         if (f.is_indexed)
             std::cout << " [index:" << (f.index_type.empty() ? "btree" : f.index_type) << "]";
@@ -42,16 +42,17 @@ void OrmSchemaVisitor::print_fields(const OrmSchema& schema) const {
     }
 }
 
-std::string OrmSchemaVisitor::sql_type(const OrmField& f, const std::string& db_engine) const {
+std::string DDLVisitor::sql_type(const OrmField& f) const {
+
     if (f.type == "string") return "TEXT";
     if (f.type == "integer") return "INTEGER";
-    if (f.type == "number") return "DOUBLE PRECISION";
+    // if (f.type == "number") return (pgeng ? "NUMERIC" : "REAL");
     if (f.type == "boolean") return "BOOLEAN";
-    if (f.type == "json") return (db_engine == "postgres" ? "JSONB" : "JSON");
+    // if (f.type == "json") return (pgeng ? "JSON" : "BLOB");
     if (f.type == "date") return "DATE";
     if (f.type == "time") return "TIME";
     if (f.type == "datetime") return "TIMESTAMP";
-    if (f.type == "timestamp") return (db_engine == "postgres" ? "TIMESTAMP WITH TIME ZONE" : "TEXT");
+    // if (f.type == "timestamp") return (pgeng ? "TIMESTAMP WITH TIME ZONE" : "TEXT");
     if (f.type == "binary") return "BYTEA";
     return "TEXT";
 }
@@ -62,8 +63,8 @@ static std::string sql_escape_single_quotes(const std::string& s) {
      return out;
  }
 
- std::string OrmSchemaVisitor::sql_default(const OrmField& f) const {
-    using DK = OrmField::DefaultKind;
+ std::string DDLVisitor::sql_default(const OrmField& f) const {
+    using DK = DefaultKind;
     switch (f.default_kind) {
         case DK::None:
             return "";
@@ -82,22 +83,31 @@ static std::string sql_escape_single_quotes(const std::string& s) {
     return "";
 }
 
-std::string BaseDDLVisitor::visit(const OrmSchema& schema) {
-    // print_fields(schema);
-    return "";
+std::string PgDDLVisitor::sql_type(const OrmField& f) const {
+    if (f.type == "string") return "TEXT";
+    if (f.type == "integer") return "INTEGER";
+    if (f.type == "number") return "NUMERIC";
+    if (f.type == "boolean") return "BOOLEAN";
+    if (f.type == "json") return "JSON";
+    if (f.type == "date") return "DATE";
+    if (f.type == "time") return "TIME";
+    if (f.type == "datetime") return "TIMESTAMP";
+    if (f.type == "timestamp") return "TIMESTAMP WITH TIME ZONE";
+    if (f.type == "binary") return "BYTEA";
+    return "TEXT";
 }
 
-std::string PostgresDDLVisitor::visit(const OrmSchema& schema) {
+std::string PgDDLVisitor::visit(const OrmSchema& schema) {
     std::ostringstream ddl;
     ddl << "CREATE TABLE "<< schema.name << "(\n";
     std::vector<std::string> pk_fields;
     for (size_t i = 0; i < schema.fields.size(); ++i) {
         const auto& f = schema.fields[i];
-        ddl << "  " << f.name << " " << sql_type(f, "postgres");
+        ddl << "  " << f.name << " " << sql_type(f);
         if (f.required) ddl << " NOT NULL";
         if (f.is_unique) ddl << " UNIQUE";
         ddl << sql_default(f);
-        if (f.is_primary_key) pk_fields.push_back(f.name);
+        if (f.is_id) pk_fields.push_back(f.name);
         if (i < schema.fields.size() - 1) ddl << ",\n";
         else ddl << "\n";
     }
@@ -112,7 +122,7 @@ std::string PostgresDDLVisitor::visit(const OrmSchema& schema) {
     ddl << "\n);";
     // Per-field indexes
     for (const auto& f : schema.fields) {
-        if (f.is_indexed && !f.is_primary_key) {
+        if (f.is_indexed && !f.is_id) {
             ddl << "\nCREATE ";
             if (f.is_unique) ddl << "UNIQUE ";
             ddl << "INDEX ";
@@ -137,8 +147,22 @@ std::string PostgresDDLVisitor::visit(const OrmSchema& schema) {
     }
 
     ddl << std::endl;
-    std::cout << "PostgresDDLVisitor::visit(): " << ddl.str();
+    std::cout << "PgDDLVisitor::visit(): " << ddl.str();
     return ddl.str();
+}
+
+std::string SqliteDDLVisitor::sql_type(const OrmField& f) const {
+    if (f.type == "string") return "TEXT";
+    if (f.type == "integer") return "INTEGER";
+    if (f.type == "number") return "REAL";
+    if (f.type == "boolean") return "BOOLEAN";
+    if (f.type == "json") return "BLOB";
+    if (f.type == "date") return "DATE";
+    if (f.type == "time") return "TIME";
+    if (f.type == "datetime") return "TIMESTAMP";
+    if (f.type == "timestamp") return "TEXT"; // can handle the time zone
+    if (f.type == "binary") return "BYTEA";
+    return "TEXT";
 }
 
 std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
@@ -147,11 +171,11 @@ std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
     std::vector<std::string> pk_fields;
     for (size_t i = 0; i < schema.fields.size(); ++i) {
         const auto& f = schema.fields[i];
-        ddl << "  " << f.name << " " << sql_type(f, "sqlite3");
+        ddl << "  " << f.name << " " << sql_type(f);
         if (f.required) ddl << " NOT NULL";
         if (f.is_unique) ddl << " UNIQUE";
         ddl << sql_default(f);
-        if (f.is_primary_key) pk_fields.push_back(f.name);
+        if (f.is_id) pk_fields.push_back(f.name);
         if (i < schema.fields.size() - 1) ddl << ",\n";
         else ddl << "\n";
     }
@@ -166,7 +190,7 @@ std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
     ddl << "\n);";
     // Per-field indexes
     for (const auto& f : schema.fields) {
-        if (f.is_indexed && !f.is_primary_key) {
+        if (f.is_indexed && !f.is_id) {
             ddl << "\nCREATE ";
             if (f.is_unique) ddl << "UNIQUE ";
             ddl << "INDEX ";
@@ -196,6 +220,6 @@ std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
 
 
 // Generate DDL for tests or output
-std::string PostgresDDLVisitor::generate_ddl(const OrmSchema& schema) {
+std::string PgDDLVisitor::generate_ddl(const OrmSchema& schema) {
     return visit(schema);     // Call visit, which fills buffer_;
 }

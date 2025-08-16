@@ -33,38 +33,38 @@ bool OrmSchema::from_json(const nlohmann::json& j, OrmSchema& schema) {
         field.type = v.value("type", "string");
         field.encoding = v.value("encoding", "");
         field.required = (std::find(required_list.begin(), required_list.end(), field.name) != required_list.end());
-        field.is_primary_key = v.value("primaryKey", false);
+        field.is_id = v.value("primaryKey", false);
         std::string kind_str = v.value("kind", "UUIDv7");
         IdKind kind = IdKind::UUIDv7;
         if (kind_str == "HighLow") kind = IdKind::HighLow;
         else if (kind_str == "Snowflake") kind = IdKind::Snowflake;
         else if (kind_str == "DBSerial") kind = IdKind::DBSerial;
         else if (kind_str == "TBSerial") kind = IdKind::TBSerial;
-        if (field.is_primary_key) field.pk_kind = kind;
+        if (field.is_id) field.id_kind = kind;
         field.is_indexed = v.value("index", false);
         field.index_type = v.value("indexType", "");
         field.is_unique = v.value("unique", false);
         if (v.contains("default")) {
           const auto& d = v["default"];
           if (d.is_string()) {
-              field.default_kind  = OrmField::DefaultKind::String;
+              field.default_kind  = DefaultKind::String;
               field.default_value = d.get<std::string>();      // unquoted text
           } else if (d.is_boolean()) {
-              field.default_kind  = OrmField::DefaultKind::Boolean;
+              field.default_kind  = DefaultKind::Boolean;
               field.default_value = d.get<bool>() ? "true" : "false";
           } else if (d.is_number()) {
-              field.default_kind  = OrmField::DefaultKind::Number;
+              field.default_kind  = DefaultKind::Number;
               field.default_value = d.dump();                  // numeric literal
           } else if (d.is_null()) {
-              field.default_kind  = OrmField::DefaultKind::Raw;
+              field.default_kind  = DefaultKind::Raw;
               field.default_value = "NULL";
           } else {
               // arrays/objects → store JSON (PG JSONB or text-as-JSON, up to visitor)
-              field.default_kind  = OrmField::DefaultKind::Raw;
+              field.default_kind  = DefaultKind::Raw;
               field.default_value = d.dump();
           }
       } else {
-          field.default_kind  = OrmField::DefaultKind::None;
+          field.default_kind  = DefaultKind::None;
           field.default_value.clear();
       }
         field.index_name = v.value("indexName", "");
@@ -88,6 +88,6 @@ bool OrmSchema::from_json(const nlohmann::json& j, OrmSchema& schema) {
     return true;
 }
 
-void OrmSchema::accept(OrmSchemaVisitor& visitor) const {
+void OrmSchema::accept(DDLVisitor& visitor) const {
     visitor.visit(*this);
 }
