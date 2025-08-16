@@ -1,0 +1,159 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://raw.githubusercontent.com/juaoduca/mapper/refs/heads/main/orm-meta-schema.json",
+    "title": "Mapper ORM – JSON Schema Extensions",
+    "description": "Adds ORM-specific keywords usable alongside normal JSON Schema. Does not redefine base JSON Schema.",
+    "type": "object",
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "Table name (ORM extension)."
+        },
+        "parent": {
+            "$ref": "#/$defs/Schema"
+        },
+        "indexes": {
+            "$ref": "#/$defs/Indexes"
+        }
+    },
+    "patternProperties": {
+        "^properties$": {
+            "type": "object",
+            "description": "Per-field definitions: allow ORM extensions inside each field object.",
+            "patternProperties": {
+                ".*": {
+                    "$ref": "#/$defs/FieldExtensions"
+                }
+            }
+        }
+    },
+    "$defs": {
+        "FieldExtensions": {
+            "type": "object",
+            "description": "ORM-only field keywords (standard JSON Schema keywords remain untouched).",
+            "properties": {
+                "idprop": {
+                    "type": "boolean",
+                    "description": "Marks this prop as the ID property or table primary key.",
+                    "default": false
+                },
+                "idkind": {
+                    "type": "string",
+                    "description": "ID generator for primary keys (overrides table-level `idkind`).",
+                    "enum": ["UUIDv7", "HighLow", "Snowflake", "DBSerial", "TBSerial"],
+                    "default": "UUIDv7"
+                },
+                "encoding": {
+                    "type": "string",
+                    "description": "Binary data encode method - store as string, avoid encode to store, avoid decode to transmit",
+                    "enum": ["yEnc", "Base64"],
+                    "default": "yEnc"
+                },
+                "index": {
+                    "type": "boolean",
+                    "description": "Create a single-column index for this field.",
+                    "default": false
+                },
+                "indexName": {
+                    "type": "string",
+                    "description": "Explicit index name for single-column indexes."
+                },
+                "indexType": {
+                    "type": "string",
+                    "description": "Index method hint, e.g. btree, hash etc.",
+                    "enum": ["btree", "hash"],
+                    "default": "btree"
+                },
+                "indexDesc": {
+                    "type": "boolean",
+                    "description": "if True = Index Descending order, False = Ascending",
+                    "default": false
+                },
+                "unique": {
+                    "type": "boolean",
+                    "description": "Create a single-column UNIQUE index.",
+                    "default": false
+                },
+                "default": {
+                    "type": "string",
+                    "description": "Define the default value for a prop / field - usefull if the field is required"
+                },
+                "schema": {
+                    "$ref": "#/$defs/Schema",
+                    "description": "Foreign key reference: { schema: <table>, field: <column> }."
+                }
+            }
+        },
+        "Indexes": {
+            "type": "array",
+            "description": "Composite or named indexes at table level.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "fields": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Index method hint, e.g. btree."
+                    },
+                    "unique": {
+                        "type": "boolean"
+                    },
+                    "indexName": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "fields"
+                ]
+            }
+        },
+        "Schema": {
+            "type": "object",
+            "properties": {
+                "schema": {
+                    "type": "string",
+                    "description": "Parent or Referenced schema/table name."
+                },
+                "field": {
+                    "type": "string",
+                    "description": "Target exported prop/field name."
+                },
+                "relation": {
+                    "type": "string",
+                    "description": "Target prop/field name.",
+                    "enum": ["one-to-many", "many-to-many"],
+                    "default": "one-to-many"
+                }
+            },
+            "required": [
+                "schema",
+                "field"
+            ]
+        },
+        "Parent": {
+            "type": "object",
+            "properties": {
+                "schema": {
+                    "type": "string",
+                    "description": "Parent or Referenced schema/table name."
+                },
+                "strategy": {
+                    "type": "string",
+                    "description": "Mapping strategy for inheritance of Schema / table",
+                    "enum": ["table-per-class"],
+                    "default": "table-per-class"
+                }
+            },
+            "required": [
+                "schema",
+                "relation"
+            ]
+        }
+    }
+}
