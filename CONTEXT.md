@@ -1,46 +1,63 @@
-# From repo root
-echo '# Project Context – juaoduca/mapper
+# CONTEXT.md
 
-## Last Updated
-2025-08-13
+## Project Overview
+**Repo:** `mapper` (part of ECM project)
+**Goal:** C++ ORM/DB toolkit using clean OOP + Visitor pattern to transform JSON Schema into SQL DDL for PostgreSQL/SQLite.
+Eventually will serve as a FastCGI backend module with schema/migrations as the single source of truth.
 
-## Repo Sync
-- Latest pointer: https://juaoduca.github.io/mapper/chat/latest.json
-- Snapshot for a specific commit: https://juaoduca.github.io/mapper/chat/<SHA>/snapshot.json
+## Current Structure
+- **include/**
+  - `orm.hpp` → core ORM structures (`OrmField`, `OrmSchema`, enums for `IdKind`, `DefaultKind`, `Dialect`, etc.)
+  - `visitor.hpp` → base visitor pattern for generating dialect-specific DDL
+- **src/** → implementations for schema handling, visitors, connections
+- **tests/**
+  - `test_dbpool.cpp`
+  - `test_ddl.cpp`
+  - `test_defaults.cpp`
+  - `test_schema_name.cpp`
+  - `test_schemamanager.cpp`
+  - `external/` → vendored `catch.hpp` (Catch2 single-header test framework)
+- **main.cpp** → demo entry point
+- **CMakeLists.txt** (root) → builds main binary + tests
+- **third_party/nlohmann/json.hpp** (fallback vendored JSON header)
+- **build.sh** helper
+- **nginx_sample.conf** example config
+- **data/** example-schema.json
 
-## Current State
-- Repo configured with “snapshot JSON” GitHub Action to sync latest commit.
-- Unit tests all passing.
+## Build System (CMake)
+- Requires **C++17**
+- Uses **nlohmann_json** (find or vendored header)
+- Detects **PostgreSQL** (optional, builds without if not found)
+- Uses **SQLite3** via `pkg-config`
 
-## Completed Work
-1. **Schema name support**
-   - Added `name` property to `OrmSchema`, loaded from `"name"` in JSON schema.
-   - Updated Postgres and SQLite visitors to use `schema.name` in `CREATE TABLE` and index DDL.
+### Targets
+- **Main executable**:
+  `orm` → `main.cpp` + all `src/*.cpp`
+- **Tests**:
+  Each `tests/test_*.cpp` file is built into its own executable and registered with CTest.
+  Example executables:
+  - `test_dbpool`
+  - `test_ddl`
+  - `test_defaults`
+  - `test_schema_name`
+  - `test_schemamanager`
 
-2. **Typed defaults**
-   - Added `DefaultKind` enum to `OrmField`:
-     - `String` → SQL single-quoted with escaping (empty string → `DEFAULT ''`).
-     - `Boolean` → `true` / `false` unquoted.
-     - `Number` → numeric literal.
-     - `Raw` → verbatim (e.g., `NULL`, JSON literal).
-   - Updated `OrmSchema::from_json` to detect default type and set `default_kind` and `default_value`.
-   - Updated `OrmSchemaVisitor::sql_default` to output correct SQL for all types.
+CTest integrates them all:
+```bash
+ctest --output-on-failure
+```
 
-3. **Tests**
-   - Adjusted test schemas to include `"name": "users"`.
-   - All tests pass after changes.
+### Status
+- ✅ All 5 tests build and pass:
+  ```
+  100% tests passed, 0 tests failed out of 5
+  ```
 
-## Next Steps
-- [ ] Decide on next feature or refactor.
-- [ ] Keep `CONTEXT.md` updated after each block of work.
+## Key Points from Last Iteration
+- Moved from **single `map_tests` runner** to **per-file test executables**.
+- Parallel build occasionally “hangs” around 88% due to linker load; resolved by retrying or reducing `-j`.
+- Verified that `ctest -N` lists all 5 test executables correctly.
+- Current repo is **stable and green**.
 
-## Usage in New Chats
-When starting a new chat, paste this file or give its snapshot URL so I can work from the latest state without loading old conversations.' > CONTEXT.md
-
-
-
-
-## 2025-08-14 — Added tests for latest features
-- Added `tests/test_defaults.cpp` to verify `sql_default` emission for String/Boolean/Number/Raw across Postgres and SQLite visitors.
-- Added `tests/test_schema_name.cpp` to verify schema `name` is respected in `CREATE TABLE` for both visitors.
-- Build locally requires `nlohmann_json` and Catch2 single-header already present in `tests/external/catch.hpp`.
+## Next Task
+- **Bootstrap Catalog**: begin implementing schema catalog bootstrap logic, ensuring the ORM can manage schema migrations in a controlled way.
