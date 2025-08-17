@@ -26,7 +26,7 @@ TEST_CASE("sql_default emits correct SQL for all DefaultKind variants (Postgres 
     })");
 
     PgDDLVisitor pg;
-    auto ddl_pg = pg.visit(static_cast<const void*>(&schema));
+    auto ddl_pg = pg.visit(schema);
     REQUIRE(ddl_pg.find("CREATE TABLE users(") != std::string::npos);
     REQUIRE(ddl_pg.find("s text") != std::string::npos || ddl_pg.find("s varchar") != std::string::npos || ddl_pg.find("s ") != std::string::npos);
     REQUIRE(ddl_pg.find("DEFAULT 'abc'") != std::string::npos);
@@ -36,7 +36,7 @@ TEST_CASE("sql_default emits correct SQL for all DefaultKind variants (Postgres 
     REQUIRE(ddl_pg.find("DEFAULT ''") != std::string::npos);
 
     SqliteDDLVisitor sq;
-    auto ddl_sq = sq.visit(static_cast<const void*>(&schema));
+    auto ddl_sq = sq.visit(schema);
     REQUIRE(ddl_sq.find("CREATE TABLE users(") != std::string::npos);
     REQUIRE(ddl_sq.find("DEFAULT 'abc'") != std::string::npos);
     // SQLite may accept TRUE/FALSE or 1/0; we normalized to literal true/false in OrmSchema::from_json

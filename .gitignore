@@ -16,3 +16,6 @@ Makefile
 CTestTestfile.cmake
 compile_commands.json
 mapper.rar
+map_tests
+json.patch
+Testing/

@@ -80,7 +80,7 @@ bool Storage::init_catalog()
     //start a transaction
     for (int i=0; i<2; i++) {
         if (OrmSchema::from_json(json::parse(schemas[i]), schema) ) {
-            std::string ddl = visitor_->visit(static_cast<const void*>(&schema));
+            std::string ddl = visitor_->visit(schema);
             if (ddl.find("IF NOT EXISTS") == std::string::npos)
             {
                 const char *needle = "CREATE TABLE";

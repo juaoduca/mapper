@@ -3,7 +3,23 @@ project(ecm CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(nlohmann_json 3.2.0 REQUIRED)
+
+# ---- nlohmann_json fallback (vendored single-header) ----
+# Try QUIET find first; if missing, look for third_party/nlohmann/json.hpp
+set(_NLOHMANN_MIN_VER 3.2.0)
+find_package(nlohmann_json ${_NLOHMANN_MIN_VER} QUIET)
+if(NOT nlohmann_json_FOUND)
+    message(STATUS "nlohmann_json not found via find_package; trying vendored header.")
+    set(NLOHMANN_JSON_VENDORED_DIR "${CMAKE_SOURCE_DIR}/third_party")
+    if(EXISTS "${NLOHMANN_JSON_VENDORED_DIR}/nlohmann/json.hpp")
+        add_library(nlohmann_json INTERFACE)
+        target_include_directories(nlohmann_json INTERFACE ${NLOHMANN_JSON_VENDORED_DIR})
+        add_library(nlohmann_json::nlohmann_json ALIAS nlohmann_json)
+        message(STATUS "Using vendored nlohmann_json header at ${NLOHMANN_JSON_VENDORED_DIR}")
+    else()
+        message(FATAL_ERROR "nlohmann_json not found. Please provide third_party/nlohmann/json.hpp or install the package.")
+    endif()
+endif()
 include_directories(include)
 
 # --- Detect PostgreSQL ---

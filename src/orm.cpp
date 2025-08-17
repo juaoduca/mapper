@@ -91,5 +91,5 @@ bool OrmSchema::from_json(const nlohmann::json& j, OrmSchema& schema) {
 }
 
 void OrmSchema::accept(DDLVisitor& visitor) const {
-    visitor.visit(static_cast<const void*>(this));
+    visitor.visit(*this);
 }
