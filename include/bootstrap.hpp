@@ -17,10 +17,10 @@
                 "unique": true,
                 "index": true
                 },
-                "current_version": {
+                "version": {
                 "type": "integer",
-                "minimum": 0,
-                "default": "0"
+                "minimum": 1,
+                "default": "1"
                 },
                 "created_at": {
                 "type": "datetime",
@@ -31,7 +31,7 @@
                 "default": "datetime('now')"
                 }
             },
-            "required": ["name", "current_version", "created_at", "updated_at"]
+            "required": ["name", "version", "created_at", "updated_at"]
         }
     )JSON";
 
@@ -41,33 +41,33 @@ static constexpr const char *SCHEMA_VERSIONS_JSON = R"JSON(
             "$id": "https://example.com/schemas/schema_catalog.json",
             "description": "Catalog of versioned JSON Schemas.",
             "type": "object",
-            "name": "schema_catalog",
+            "name": "schema_versions",
             "properties": {
                 "id": {
                 "type": "integer",
                 "idprop": true,
                 "idkind": "DBSerial"
                 },
-                "name": {
-                "type": "string",
-                "minLength": 3,
-                "unique": true,
-                "index": true
+                "schema": {
+                "type": "object",
+                "schema": "schema_catalog",
+                "prop": "id",
+                "relation": "one-to-many"
                 },
-                "current_version": {
+                "version": {
                 "type": "integer",
-                "minimum": 0,
-                "default": "0"
+                "minimum": 1,
+                "default": "1"
                 },
-                "created_at": {
-                "type": "datetime",
-                "default": "datetime('now')"
+                "applied": {
+                "type": "boolean",
+                "default": false
                 },
-                "updated_at": {
-                "type": "datetime",
-                "default": "datetime('now')"
+                "json": {
+                "type": "json",
+                "default": ""
                 }
             },
-            "required": ["name", "current_version", "created_at", "updated_at"]
+            "required": ["name", "schema", "version"]
         }
     )JSON";

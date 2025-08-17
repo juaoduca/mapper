@@ -1,6 +1,6 @@
 #include "catch.hpp"
 #include "orm.hpp"
-#include "visitor.hpp"
+#include "ddl_visitor.hpp"
 #include <nlohmann/json.hpp>
 #include <string>
 
@@ -37,7 +37,7 @@ TEST_CASE("DDL covers all types and features", "[ddl]") {
 
     PgDDLVisitor pgvis;
     std::string ddl_pg = pgvis.generate_ddl(schema);
-    REQUIRE(ddl_pg.find("CREATE TABLE users") != std::string::npos);
+    REQUIRE(ddl_pg.find("CREATE TABLE IF NOT EXISTS users") != std::string::npos);
     REQUIRE(ddl_pg.find("id TEXT NOT NULL") != std::string::npos); // ULID PK
     REQUIRE(ddl_pg.find("avatar BYTEA") != std::string::npos);
     REQUIRE(ddl_pg.find("active BOOLEAN DEFAULT true") != std::string::npos);

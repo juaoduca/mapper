@@ -1,63 +1,63 @@
-# CONTEXT.md
+Project: ECM / mapper
 
-## Project Overview
-**Repo:** `mapper` (part of ECM project)
-**Goal:** C++ ORM/DB toolkit using clean OOP + Visitor pattern to transform JSON Schema into SQL DDL for PostgreSQL/SQLite.
-Eventually will serve as a FastCGI backend module with schema/migrations as the single source of truth.
+C++ ORM/DB toolkit using clean OOP + Visitor pattern to turn JSON Schema into SQL DDL/DML for PostgreSQL & SQLite.
+CMake-based repo: include/, src/, tests/, data/ (example-schema.json), main.cpp demo, nginx_sample.conf, build.sh.
+Depends on nlohmann-json. Part of ECM project to provide ORM FastCGI module with single source of truth for schema & migrations.
 
-## Current Structure
-- **include/**
-  - `orm.hpp` → core ORM structures (`OrmField`, `OrmSchema`, enums for `IdKind`, `DefaultKind`, `Dialect`, etc.)
-  - `visitor.hpp` → base visitor pattern for generating dialect-specific DDL
-- **src/** → implementations for schema handling, visitors, connections
-- **tests/**
-  - `test_dbpool.cpp`
-  - `test_ddl.cpp`
-  - `test_defaults.cpp`
-  - `test_schema_name.cpp`
-  - `test_schemamanager.cpp`
-  - `external/` → vendored `catch.hpp` (Catch2 single-header test framework)
-- **main.cpp** → demo entry point
-- **CMakeLists.txt** (root) → builds main binary + tests
-- **third_party/nlohmann/json.hpp** (fallback vendored JSON header)
-- **build.sh** helper
-- **nginx_sample.conf** example config
-- **data/** example-schema.json
+Current Focus
 
-## Build System (CMake)
-- Requires **C++17**
-- Uses **nlohmann_json** (find or vendored header)
-- Detects **PostgreSQL** (optional, builds without if not found)
-- Uses **SQLite3** via `pkg-config`
+Bootstrap catalog + DML layer implementation
 
-### Targets
-- **Main executable**:
-  `orm` → `main.cpp` + all `src/*.cpp`
-- **Tests**:
-  Each `tests/test_*.cpp` file is built into its own executable and registered with CTest.
-  Example executables:
-  - `test_dbpool`
-  - `test_ddl`
-  - `test_defaults`
-  - `test_schema_name`
-  - `test_schemamanager`
+Progress
 
-CTest integrates them all:
-```bash
-ctest --output-on-failure
-```
+✅ Test suite compiles, CMake build OK.
 
-### Status
-- ✅ All 5 tests build and pass:
-  ```
-  100% tests passed, 0 tests failed out of 5
-  ```
+✅ Catalog bootstrap sequence under construction.
 
-## Key Points from Last Iteration
-- Moved from **single `map_tests` runner** to **per-file test executables**.
-- Parallel build occasionally “hangs” around 88% due to linker load; resolved by retrying or reducing `-j`.
-- Verified that `ctest -N` lists all 5 test executables correctly.
-- Current repo is **stable and green**.
+✅ SQLConnection now owns transaction control:
 
-## Next Task
-- **Bootstrap Catalog**: begin implementing schema catalog bootstrap logic, ensuring the ORM can manage schema migrations in a controlled way.
+begin(), commit(), rollback().
+
+✅ Storage::addSchema() implemented:
+
+Adds schema to in-memory catalog.
+
+Calls Storage::insert() to add to DB if conn provided.
+
+✅ Two versions of Storage::insert():
+
+insert(schemaName, data, trackinfo) → acquires connection from pool, manages transaction.
+
+insert(conn, schema, data, trackinfo) → uses acquired connection, generates DML via DMLVisitor, handles arrays/objects, IDs, audit, notify.
+
+✅ SQLConnection::prepare() implemented in both SQLite and Postgres backends.
+
+✅ SQLiteConnection::bind() implemented covering all OrmField data types.
+
+⏳ PostgresConnection::bind() not yet implemented (PgStatement skeleton in progress).
+
+Data Type Handling
+
+JSON Schema → SQL types
+
+SQLite: maps to TEXT, INTEGER, REAL, BOOLEAN, BLOB, DATE, TIME, TIMESTAMP, etc.
+
+PostgreSQL: maps to TEXT, INTEGER, NUMERIC, BOOLEAN, JSON, DATE, TIME, TIMESTAMP, TIMESTAMP WITH TIME ZONE, BYTEA.
+
+Bind() coverage:
+
+SQLite: fully covered (string, int, number, bool, json, binary, date/time).
+
+PostgreSQL: bind function still TODO.
+
+Next Steps
+
+Implement PgStatement + PgConnection::bind() mirroring SQLite pattern (using libpq).
+
+Finish DMLVisitor for Insert / Upsert / Update / Delete (Postgres + SQLite).
+
+Hook Storage::insert() into catalog bootstrap (init_catalog).
+
+Extend tests for DML path (insert/upsert/update/delete).
+
+Add JSON ↔️ object serialization with NLOHMANN_DEFINE_TYPE_INTRUSIVE/NON_INTRUSIVE.

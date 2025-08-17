@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.12)
 project(ecm CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -37,7 +37,8 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(SQLITE3 REQUIRED sqlite3)
 
 # --- Sources ---
-file(GLOB SOURCES "src/*.cpp")
+# Re-scan src/ when files are added/removed
+file(GLOB SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 
 # Remove Postgres connection if libpq not available
 if (NOT HAVE_POSTGRESQL)
@@ -57,8 +58,9 @@ endif()
 
 # --- Unit tests ---
 enable_testing()
-# Collect all test sources matching tests/test_*.cpp
-file(GLOB TEST_SOURCES tests/test_*.cpp)
+
+# Collect all test sources matching tests/test_*.cpp (auto-refresh)
+file(GLOB TEST_SOURCES CONFIGURE_DEPENDS tests/test_*.cpp)
 
 foreach(test_src ${TEST_SOURCES})
     get_filename_component(test_name ${test_src} NAME_WE)

@@ -1,4 +1,4 @@
-#include "visitor.hpp"
+#include "ddl_visitor.hpp"
 
 std::string DDLVisitor::visit(const OrmSchema& schema) {
     print_fields(schema);
@@ -84,22 +84,22 @@ static std::string sql_escape_single_quotes(const std::string& s) {
 }
 
 std::string PgDDLVisitor::sql_type(const OrmField& f) const {
-    if (f.type == "string") return "TEXT";
-    if (f.type == "integer") return "INTEGER";
-    if (f.type == "number") return "NUMERIC";
-    if (f.type == "boolean") return "BOOLEAN";
-    if (f.type == "json") return "JSON";
-    if (f.type == "date") return "DATE";
-    if (f.type == "time") return "TIME";
-    if (f.type == "datetime") return "TIMESTAMP";
-    if (f.type == "timestamp") return "TIMESTAMP WITH TIME ZONE";
-    if (f.type == "binary") return "BYTEA";
+    if (f.type == DT_STR    ) return "TEXT"                     ;
+    if (f.type == DT_INT    ) return "INTEGER"                  ;
+    if (f.type == DT_NUM    ) return "NUMERIC"                  ;
+    if (f.type == DT_BOOL   ) return "BOOLEAN"                  ;
+    if (f.type == DT_JSON   ) return "JSON"                     ;
+    if (f.type == DT_DATE   ) return "DATE"                     ;
+    if (f.type == DT_TIME   ) return "TIME"                     ;
+    if (f.type == DT_DTIME  ) return "TIMESTAMP"                ;
+    if (f.type == DT_TIMEST ) return "TIMESTAMP WITH TIME ZONE" ;
+    if (f.type == DT_BIN    ) return "BYTEA"                    ;
     return "TEXT";
 }
 
 std::string PgDDLVisitor::visit(const OrmSchema& schema) {
     std::ostringstream ddl;
-    ddl << "CREATE TABLE "<< schema.name << "(\n";
+    ddl << "CREATE TABLE IF NOT EXISTS "<< schema.name << "(\n";
     std::vector<std::string> pk_fields;
     for (size_t i = 0; i < schema.fields.size(); ++i) {
         const auto& f = schema.fields[i];
@@ -152,22 +152,33 @@ std::string PgDDLVisitor::visit(const OrmSchema& schema) {
 }
 
 std::string SqliteDDLVisitor::sql_type(const OrmField& f) const {
-    if (f.type == "string") return "TEXT";
-    if (f.type == "integer") return "INTEGER";
-    if (f.type == "number") return "REAL";
-    if (f.type == "boolean") return "BOOLEAN";
-    if (f.type == "json") return "BLOB";
-    if (f.type == "date") return "DATE";
-    if (f.type == "time") return "TIME";
-    if (f.type == "datetime") return "TIMESTAMP";
-    if (f.type == "timestamp") return "TEXT"; // can handle the time zone
-    if (f.type == "binary") return "BLOB";
+    // if (f.type == "string") return "TEXT";
+    // if (f.type == "integer") return "INTEGER";
+    // if (f.type == "number") return "REAL";
+    // if (f.type == "boolean") return "BOOLEAN";
+    // if (f.type == "json") return "BLOB";
+    // if (f.type == "date") return "DATE";
+    // if (f.type == "time") return "TIME";
+    // if (f.type == "datetime") return "TIMESTAMP";
+    // if (f.type == "timestamp") return "TEXT"; // can handle the time zone
+    // if (f.type == "binary") return "BLOB";
+
+    if (f.type == DT_STR    ) return "TEXT"      ;
+    if (f.type == DT_INT    ) return "INTEGER"   ;
+    if (f.type == DT_NUM    ) return "REAL"      ;
+    if (f.type == DT_BOOL   ) return "BOOLEAN"   ;
+    if (f.type == DT_JSON   ) return "BLOB"      ;
+    if (f.type == DT_DATE   ) return "DATE"      ;
+    if (f.type == DT_TIME   ) return "TIME"      ;
+    if (f.type == DT_DTIME  ) return "TIMESTAMP" ;
+    if (f.type == DT_TIMEST ) return "TEXT"      ;
+    if (f.type == DT_BIN    ) return "BLOB"      ;
     return "TEXT";
 }
 
 std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
     std::ostringstream ddl;
-    ddl << "CREATE TABLE "<< schema.name << "(\n";
+    ddl << "CREATE TABLE IF NOT EXISTS "<< schema.name << "(\n";
     std::vector<std::string> pk_fields;
     for (size_t i = 0; i < schema.fields.size(); ++i) {
         const auto& f = schema.fields[i];

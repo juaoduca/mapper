@@ -36,13 +36,3 @@ public:
     std::string generate_ddl(const OrmSchema& schema);
     std::string  visit(const OrmSchema& schema) override;
 };
-
-class DMLVisitor: public SQLVisitor {
-public:
-    std::string  visit(const OrmSchema& schema) override;
-};
-
-class QRYVisitor: public SQLVisitor {
-public:
-    std::string  visit(const OrmSchema& schema) override;
-};

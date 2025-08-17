@@ -9,6 +9,14 @@
             "type": "string",
             "description": "Table name (ORM extension)."
         },
+        "version": {
+            "type": "integer",
+            "description": "version controls the applied version and the version history"
+        },
+        "json": {
+            "type": "string",
+            "description": "the JSONSchema to build/map to DB table"
+        },
         "parent": {
             "$ref": "#/$defs/Schema"
         },
@@ -125,20 +133,20 @@
                     "type": "string",
                     "description": "Parent or Referenced schema/table name."
                 },
-                "field": {
+                "prop": {
                     "type": "string",
-                    "description": "Target exported prop/field name."
+                    "description": "Target exported/referenced prop/field name."
                 },
                 "relation": {
                     "type": "string",
-                    "description": "Target prop/field name.",
-                    "enum": ["one-to-many", "many-to-many"],
+                    "description": "Multiplicidy of the relation",
+                    "enum": ["one-to-one", "one-to-many", "many-to-many"],
                     "default": "one-to-many"
                 }
             },
             "required": [
                 "schema",
-                "field"
+                "prop"
             ]
         },
         "Parent": {

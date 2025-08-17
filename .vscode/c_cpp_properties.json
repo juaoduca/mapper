@@ -8,8 +8,8 @@
                 "/usr/include/postgresql"
             ],
             "defines": [],
-            "compilerPath": "/usr/bin/g++",
-            "cStandard": "c11",
+            "compilerPath": "/usr/bin/g++-13",
+            "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "linux-gcc-x64"
         }

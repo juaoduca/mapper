@@ -5,6 +5,13 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 
+class SQLStatement {
+public:
+    virtual ~SQLStatement() = default;
+    virtual void bind(int idx, const nlohmann::json& value, const std::string& type) = 0;
+    virtual int exec() = 0;  // return rows affected
+};
+
 class SQLConnection {
 public:
     virtual ~SQLConnection() = default;
@@ -13,20 +20,16 @@ public:
     virtual void connect(const std::string& dsn) = 0;
 
     // Safe to call multiple times.
-    virtual void disconnect() noexcept = 0;
+    virtual void disconnect()  = 0;
 
-    // DDL: returns true on success, false on failure.
-    virtual bool execDDL(std::string sql) = 0;
+    virtual std::unique_ptr<SQLStatement> prepare(const std::string& sql) = 0;
 
-    // DML (INSERT/UPDATE/DELETE/UPSERT):
-    // returns affected rows; parameters are positional.
-    virtual int execDML(std::string sql,
-                        const std::vector<std::string>& params = {}) = 0;
+    virtual bool begin() = 0;
+    virtual bool commit() = 0;
+    virtual void rollback() = 0;
 
-    // SELECT: returns rows as JSON objects (colName -> value as string/JSON).
-    virtual std::vector<nlohmann::json>
-    get(std::string sql,
-        const std::vector<std::string>& params = {}) = 0;
+protected:
+    bool tr_started_;
 };
 
 // Helpers for ownership

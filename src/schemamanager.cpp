@@ -1,5 +1,5 @@
 #include "schemamanager.hpp"
-#include "visitor.hpp"
+#include "ddl_visitor.hpp"
 #include <unordered_map>
 #include <set>
 

@@ -11,13 +11,46 @@
 #include "dbpool.hpp"
 #include "sqlconnection.hpp"
 
+
 using namespace std::chrono_literals;
 using pool::AcquirePolicy;
 using pool::DbIntent;
-using pool::DbPool;
 using pool::Lease;
 using pool::PoolAcquireError;
 using pool::PoolStats;
+
+// -----------Fake SQLStatement ---------
+
+class FakeSQLStatement : public SQLStatement {
+public:
+    struct BoundValue {
+        int idx;
+        nlohmann::json value;
+        std::string type;
+    };
+
+    explicit FakeSQLStatement(int rows_to_affect = 1)
+        : rows_to_affect_(rows_to_affect), exec_count_(0) {}
+
+    void bind(int idx, const nlohmann::json& value, const std::string& type) override {
+        bound_values_.push_back({idx, value, type});
+    }
+
+    int exec() override {
+        ++exec_count_;
+        return rows_to_affect_;
+    }
+
+    // Helpers for tests
+    const std::vector<BoundValue>& boundValues() const { return bound_values_; }
+    int execCount() const { return exec_count_; }
+    void setRowsToAffect(int rows) { rows_to_affect_ = rows; }
+
+private:
+    int rows_to_affect_;
+    int exec_count_;
+    std::vector<BoundValue> bound_values_;
+};
 
 // ---------- Fake connections ----------
 class FakeConn : public SQLConnection
@@ -36,27 +69,36 @@ public:
         // No-op for fake
     }
 
-    bool execDDL(std::string sql) override
-    {
-        return true; // Always succeed
-    }
 
-    int execDML(std::string sql, const std::vector<std::string> &params) override
-    {
-        return 1; // Pretend 1 row affected
-    }
+    std::unique_ptr<SQLStatement> prepare(const std::string& sql) override {
+        return std::make_unique<FakeSQLStatement>();
+    };
 
-    std::vector<nlohmann::json> get(std::string sql, const std::vector<std::string> &params) override
-    {
-        return {}; // Return empty result set
-    }
+    bool begin () override { return true;};
+    bool commit() override {return true;};
+    void rollback() override {/*no op*/};
+
+    // bool execDDL(std::string sql) override
+    // {
+    //     return true; // Always succeed
+    // }
+
+    // int execDML(std::string sql, const std::vector<std::string> &params) override
+    // {
+    //     return 1; // Pretend 1 row affected
+    // }
+
+    // std::vector<nlohmann::json> get(std::string sql, const std::vector<std::string> &params) override
+    // {
+    //     return {}; // Return empty result set
+    // }
 
 private:
     int id_;
 };
 
 // ---------- Deterministic FakePool (no templates) ----------
-class FakePool : public DbPool
+class FakePool : public pool::IDbPool
 {
 public:
     FakePool(std::size_t readCap, std::size_t writeCap, bool writerPriority, AcquirePolicy pol)
