@@ -17,7 +17,7 @@ TEST_CASE("DDL covers all types and features", "[ddl]") {
         "name": "users",
         "type": "object",
         "properties": {
-            "id":      { "type": "string", "primaryKey": true, "kind": "UUIDv7" },
+            "id":      { "type": "string", "idprop": true, "idkind": "UUIDv7" },
             "active":  { "type": "boolean", "default": true },
             "avatar":  { "type": "binary", "encoding": "base64" },
             "score":   { "type": "integer", "default": 42 },
@@ -38,7 +38,7 @@ TEST_CASE("DDL covers all types and features", "[ddl]") {
     PgDDLVisitor pgvis;
     std::string ddl_pg = pgvis.generate_ddl(schema);
     REQUIRE(ddl_pg.find("CREATE TABLE users") != std::string::npos);
-    REQUIRE(ddl_pg.find("id TEXT") != std::string::npos); // ULID PK
+    REQUIRE(ddl_pg.find("id TEXT NOT NULL") != std::string::npos); // ULID PK
     REQUIRE(ddl_pg.find("avatar BYTEA") != std::string::npos);
     REQUIRE(ddl_pg.find("active BOOLEAN DEFAULT true") != std::string::npos);
     REQUIRE(ddl_pg.find("email TEXT NOT NULL UNIQUE DEFAULT ''") != std::string::npos);
