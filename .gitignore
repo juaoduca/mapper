@@ -19,3 +19,5 @@ mapper.rar
 map_tests
 json.patch
 Testing/
+code.patch
+*.patch

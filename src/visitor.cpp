@@ -8,7 +8,7 @@ std::string DDLVisitor::visit(const OrmSchema& schema) {
 void DDLVisitor::print_fields(const OrmSchema& schema) const {
     std::cout << "Fields in schema:" << std::endl;
     for (const auto& f : schema.fields) {
-        std::cout << "  - " << f.name << " (" << f.type << ")";
+        std::cout << " - " << f.name << " (" << f.type << ")";
         if (!f.encoding.empty())
             std::cout << " [encoding: " << f.encoding << "]";
         if (f.required)
@@ -103,7 +103,7 @@ std::string PgDDLVisitor::visit(const OrmSchema& schema) {
     std::vector<std::string> pk_fields;
     for (size_t i = 0; i < schema.fields.size(); ++i) {
         const auto& f = schema.fields[i];
-        ddl << "  " << f.name << " " << sql_type(f);
+        ddl << " " << f.name << " " << sql_type(f);
         if (f.required) ddl << " NOT NULL";
         if (f.is_unique) ddl << " UNIQUE";
         ddl << sql_default(f);
@@ -128,7 +128,7 @@ std::string PgDDLVisitor::visit(const OrmSchema& schema) {
             ddl << "INDEX ";
             if (!f.index_name.empty())
                 ddl << f.index_name << " ";
-            ddl << "ON users (" << f.name << ");";
+            ddl << "ON " << schema.name << " (" << f.name << ");";
         }
     }
     // Schema-level indexes
@@ -138,7 +138,7 @@ std::string PgDDLVisitor::visit(const OrmSchema& schema) {
         ddl << "INDEX ";
         if (!idx.index_name.empty())
             ddl << idx.index_name << " ";
-        ddl << "ON users (";
+        ddl << "ON " << schema.name << " (";
         for (size_t i = 0; i < idx.fields.size(); ++i) {
             ddl << idx.fields[i];
             if (i < idx.fields.size() - 1) ddl << ", ";
@@ -161,7 +161,7 @@ std::string SqliteDDLVisitor::sql_type(const OrmField& f) const {
     if (f.type == "time") return "TIME";
     if (f.type == "datetime") return "TIMESTAMP";
     if (f.type == "timestamp") return "TEXT"; // can handle the time zone
-    if (f.type == "binary") return "BYTEA";
+    if (f.type == "binary") return "BLOB";
     return "TEXT";
 }
 
@@ -171,7 +171,7 @@ std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
     std::vector<std::string> pk_fields;
     for (size_t i = 0; i < schema.fields.size(); ++i) {
         const auto& f = schema.fields[i];
-        ddl << "  " << f.name << " " << sql_type(f);
+        ddl << " " << f.name << " " << sql_type(f);
         if (f.required) ddl << " NOT NULL";
         if (f.is_unique) ddl << " UNIQUE";
         ddl << sql_default(f);
@@ -196,7 +196,7 @@ std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
             ddl << "INDEX ";
             if (!f.index_name.empty())
                 ddl << f.index_name << " ";
-            ddl << "ON users (" << f.name << ");";
+            ddl << "ON " << schema.name << " (" << f.name << ");";
         }
     }
     // Schema-level indexes
@@ -206,7 +206,7 @@ std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
         ddl << "INDEX ";
         if (!idx.index_name.empty())
             ddl << idx.index_name << " ";
-        ddl << "ON users (";
+        ddl << "ON " << schema.name << " (";
         for (size_t i = 0; i < idx.fields.size(); ++i) {
             ddl << idx.fields[i];
             if (i < idx.fields.size() - 1) ddl << ", ";
