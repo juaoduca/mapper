@@ -15,7 +15,7 @@ TEST_CASE("sql_default emits correct SQL for all DefaultKind variants (Postgres 
     auto schema = load_schema_from_json(R"({
         "name": "users",
         "properties": {
-            "id":    { "type": "integer", "primaryKey": true },
+            "id":    { "type": "string", "idprop": true, "idkind": "uuidv7" },
             "s":     { "type": "string",  "default": "abc" },
             "b":     { "type": "boolean", "default": true },
             "n":     { "type": "number",  "default": 42 },
@@ -28,7 +28,7 @@ TEST_CASE("sql_default emits correct SQL for all DefaultKind variants (Postgres 
     PgDDLVisitor pg;
     auto ddl_pg = pg.visit(schema);
     REQUIRE(ddl_pg.find("CREATE TABLE users(") != std::string::npos);
-    REQUIRE(ddl_pg.find("s text") != std::string::npos || ddl_pg.find("s varchar") != std::string::npos || ddl_pg.find("s ") != std::string::npos);
+    REQUIRE(ddl_pg.find("s TEXT") != std::string::npos);
     REQUIRE(ddl_pg.find("DEFAULT 'abc'") != std::string::npos);
     REQUIRE(ddl_pg.find("DEFAULT true") != std::string::npos);
     REQUIRE(ddl_pg.find("DEFAULT 42") != std::string::npos);

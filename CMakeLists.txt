@@ -57,21 +57,23 @@ endif()
 
 # --- Unit tests ---
 enable_testing()
-add_executable(map_tests tests/test_schemamanager.cpp tests/test_ddl.cpp ${SOURCES})
+# Collect all test sources matching tests/test_*.cpp
+file(GLOB TEST_SOURCES tests/test_*.cpp)
 
-target_include_directories(map_tests PRIVATE include tests/external)
-target_compile_definitions(map_tests PRIVATE HAVE_POSTGRESQL=$<BOOL:${HAVE_POSTGRESQL}>)
-target_link_libraries(map_tests PRIVATE nlohmann_json::nlohmann_json sqlite3)
+foreach(test_src ${TEST_SOURCES})
+    get_filename_component(test_name ${test_src} NAME_WE)
+    #add_executable(${test_name} ${test_src} ${SOURCES})
+    add_executable(${test_name} ${test_src} tests/main.cpp ${SOURCES})
+    target_include_directories(${test_name} PRIVATE include tests/external)
+    target_compile_definitions(${test_name} PRIVATE HAVE_POSTGRESQL=$<BOOL:${HAVE_POSTGRESQL}>)
+    target_link_libraries(${test_name} PRIVATE nlohmann_json::nlohmann_json sqlite3)
 
-# in root CMakeLists.txt, after the map_tests target is defined
-target_sources(map_tests PRIVATE tests/test_dbpool.cpp)
+    if (HAVE_POSTGRESQL)
+        target_include_directories(${test_name} PRIVATE ${PostgreSQL_INCLUDE_DIRS})
+        target_link_libraries(${test_name} PRIVATE ${PostgreSQL_LIBRARIES} pq)
+    endif()
 
-
-if (HAVE_POSTGRESQL)
-    target_include_directories(map_tests PRIVATE ${PostgreSQL_INCLUDE_DIRS})
-    target_link_libraries(map_tests PRIVATE ${PostgreSQL_LIBRARIES} pq)
-endif()
-
-add_test(NAME OrmSchemaManagerTests COMMAND map_tests)
+    add_test(NAME ${test_name} COMMAND ${test_name})
+endforeach()
 
 
