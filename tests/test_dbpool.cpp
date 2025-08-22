@@ -25,20 +25,28 @@ class FakeSQLStatement : public SQLStatement {
 public:
     struct BoundValue {
         int idx;
-        nlohmann::json value;
+        const jval& value;
         std::string type;
     };
 
     explicit FakeSQLStatement(int rows_to_affect = 1)
         : rows_to_affect_(rows_to_affect), exec_count_(0) {}
 
-    void bind(int idx, const nlohmann::json& value, const std::string& type) override {
-        bound_values_.push_back({idx, value, type});
+    void bind(int idx, const jval& value, const PropType& type) override {
+        bound_values_.push_back({idx, value, proptype(type) });
     }
 
     int exec() override {
         ++exec_count_;
         return rows_to_affect_;
+    }
+
+    void set_null(int idx) override {
+
+    }
+
+    void set_text(int idx, std::string value) override {
+
     }
 
     // Helpers for tests
@@ -70,13 +78,15 @@ public:
     }
 
 
-    std::unique_ptr<SQLStatement> prepare(const std::string& sql) override {
+    std::unique_ptr<SQLStatement> prepare(const std::string& sql, int numParams) override {
         return std::make_unique<FakeSQLStatement>();
     };
 
     bool begin () override { return true;};
     bool commit() override {return true;};
     void rollback() override {/*no op*/};
+
+    int64_t nextValue(std::string name) override {return 0;}
 
     // bool execDDL(std::string sql) override
     // {

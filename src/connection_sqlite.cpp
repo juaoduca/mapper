@@ -1,113 +1,81 @@
+
 #include "sqlconnection.hpp"
-#include "orm.hpp"
 #include <sqlite3.h>
 #include <stdexcept>
+#include <iostream>
+#include <lib.hpp>
 
 class SQLiteStatement final : public SQLStatement {
 public:
-    explicit SQLiteStatement(sqlite3_stmt* stmt) : stmt_(stmt) {}
+    explicit SQLiteStatement(sqlite3_stmt* stmt)
+        : stmt_(stmt) { }
     ~SQLiteStatement() override {
         if (stmt_) sqlite3_finalize(stmt_);
     }
 
-    void bind(int idx, const nlohmann::json& value, const std::string& type) override {
-    using nlohmann::json;
+    void set_text(int idx, str value) override {
+        //handle unicode string UTF-8
+        sqlite3_bind_text(stmt_, idx, value.c_str(), static_cast<int>(value.size()), SQLITE_TRANSIENT);
+        //the below function can handle UTF_16
+        //sqlite3_bind_text64(stmt_, idx, s.c_str(), static_cast<int>(s.size()), SQLITE_TRANSIENT, SQLITE_UTF8);
+    }
 
-    // Null maps to NULL for every type
-    if (value.is_null()) {
+    void set_null(int idx) override {
         sqlite3_bind_null(stmt_, idx);
-        return;
     }
 
-    // Helper to bind TEXT
-    auto bind_text = [&](const std::string& s) {
-        sqlite3_bind_text(stmt_, idx, s.c_str(), static_cast<int>(s.size()), SQLITE_TRANSIENT);
-    };
-    // Helper to bind BLOB
-    auto bind_blob = [&](const void* data, size_t len) {
-#if SQLITE_VERSION_NUMBER >= 3007015
-        sqlite3_bind_blob64(stmt_, idx, data, static_cast<sqlite3_uint64>(len), SQLITE_TRANSIENT);
-#else
-        sqlite3_bind_blob(stmt_, idx, data, static_cast<int>(len), SQLITE_TRANSIENT);
-#endif
-    };
+    void bind(int idx, const jval& value, const PropType& type) override {
 
-    // STRING
-    if (type == DT_STR) {
-        if (!value.is_string()) throw std::runtime_error("Expected string");
-        bind_text(value.get<std::string>());
-        return;
-    }
+        // // Helper to bind BLOB
+        // auto bind_blob = [&](const void* data, size_t len) {
+        //     (SQLITE_VERSION_NUMBER >= 3007015) ?
+        //         sqlite3_bind_blob64(stmt_, idx, data, static_cast<sqlite3_uint64>(len), SQLITE_TRANSIENT) :
+        //         sqlite3_bind_blob(stmt_, idx, data, static_cast<int>(len), SQLITE_TRANSIENT);
+        // };
+        /************** HELPERS FUNCTIONS ***************************/
 
-    // INTEGER
-    if (type == DT_INT) {
-        if (value.is_number_integer()) {
-            sqlite3_bind_int64(stmt_, idx, value.get<long long>());
-            return;
+
+        // Null maps to NULL for every type
+        if (value.IsNull()) { set_null(idx); return; }
+
+        switch (type) {
+            case PropType::String: { if(value.IsString()) {set_text(idx, value.GetString()); return;}
+                throw er("bind: expected string"); return;
+            }break;
+            case PropType::Integer:
+            case PropType::Number : {
+                if (value.IsInt   ()) {sqlite3_bind_int   (stmt_, idx, value.GetInt   ()); return; }
+                if (value.IsInt64 ()) {sqlite3_bind_int64 (stmt_, idx, value.GetInt64 ()); return; }
+                if (value.IsUint  ()) {sqlite3_bind_int   (stmt_, idx, value.GetUint  ()); return; }
+                if (value.IsUint64()) {sqlite3_bind_int64 (stmt_, idx, value.GetUint64()); return; }
+                if (value.IsFloat ()) {sqlite3_bind_double(stmt_, idx, value.GetDouble()); return; }
+                if (value.IsDouble()) {sqlite3_bind_double(stmt_, idx, value.GetDouble()); return; }
+                throw er("bind: expected integer or number");
+            }; break;
+            case PropType::Bool: {
+                if (value.IsBool()){set_bool(idx, value.GetBool() ); return;}
+                if (value.IsInt ()){set_bool(idx, value.GetInt() != 0);return;}
+                throw er("bind: expected boolean");
+            }; break;
+            case PropType::Date:
+            case PropType::Time:
+            case PropType::Dt_Time:
+            case PropType::Tm_Stamp: {
+                if (!value.IsString()) {str v =value.GetString(); set_datetime(idx, v); return;}
+                throw er("bind: expected ISO-8601 string for date/time");
+            };break;
+            case PropType::Json: {
+                if (value.IsObject()) {set_text(idx, jhlp::dump(value)); return;}
+                if (value.IsArray() ) {set_text(idx, jhlp::dump(value)); return;}
+                if (value.IsString()) {set_text(idx, value.GetString()); return;}
+                throw er("bind: expected JSON object JSON array or string");
+            }break;
+            case PropType::Bin: {
+                if (value.IsString()) {set_text(idx, value.GetString()); return;}
+                throw er("bind: expected binary as yEnc string");
+            }
         }
-        throw std::runtime_error("Expected integer");
     }
-
-    // NUMBER (REAL)
-    if (type == DT_NUM) {
-        if (value.is_number_float()) {
-            sqlite3_bind_double(stmt_, idx, value.get<double>());
-            return;
-        }
-        if (value.is_number_integer()) {
-            // Upcast integer to REAL if schema says number
-            sqlite3_bind_double(stmt_, idx, static_cast<double>(value.get<long long>()));
-            return;
-        }
-        throw std::runtime_error("Expected number");
-    }
-
-    // BOOLEAN (store as INTEGER 0/1; SQLite BOOLEAN affinity is numeric)
-    if (type == DT_BOOL) {
-        if (value.is_boolean()) {
-            sqlite3_bind_int(stmt_, idx, value.get<bool>() ? 1 : 0);
-            return;
-        }
-        // Optional: allow 0/1 numbers for bool
-        if (value.is_number_integer()) {
-            sqlite3_bind_int(stmt_, idx, value.get<long long>() != 0 ? 1 : 0);
-            return;
-        }
-        throw std::runtime_error("Expected boolean");
-    }
-
-    // DATE/TIME/DATETIME/TIMESTAMP — store as TEXT (ISO-8601)
-    if (type == DT_DATE || type == DT_TIME || type == DT_DTIME || type == DT_TIMEST) {
-        if (!value.is_string()) throw std::runtime_error("Expected ISO-8601 string for date/time");
-        bind_text(value.get<std::string>());
-        return;
-    }
-
-    // JSON — DDL maps to BLOB; store canonical JSON UTF-8 bytes
-    if (type == DT_JSON) {
-        std::string payload;
-        if (value.is_string()) {
-            // Accept pre-serialized JSON string
-            payload = value.get<std::string>();
-        } else {
-            // Serialize object/array/etc. to JSON text
-            payload = value.dump();
-        }
-        bind_blob(payload.data(), payload.size());
-        return;
-    }
-
-    // BINARY — expect a string of raw bytes (or base64 if that’s your convention)
-    if (type == DT_BIN) {
-        if (!value.is_string()) throw std::runtime_error("Expected binary as string of bytes");
-        const std::string& s = value.get_ref<const std::string&>();
-        bind_blob(s.data(), s.size());
-        return;
-    }
-
-    // Fallback
-    throw std::runtime_error("Unsupported declared type for bind: " + type);
-}
 
     int exec() override {
         int rc = sqlite3_step(stmt_);
@@ -116,6 +84,12 @@ public:
         }
         return sqlite3_changes(sqlite3_db_handle(stmt_));
     }
+
+    // execute with returning
+    // int exec_ret() override{
+    //     return 0;
+    // }
+
 
 private:
     sqlite3_stmt* stmt_;
@@ -139,13 +113,13 @@ public:
         }
     }
 
-//transaction control
+    // transaction control
     bool begin() override {
         try {
             if (tr_started_) return true;
             tr_started_ = execSQL("BEGIN;");
             return tr_started_;
-        } catch(...) {
+        } catch (...) {
             return false;
         }
     }
@@ -166,13 +140,20 @@ public:
         }
     }
 
-    std::unique_ptr<SQLStatement> prepare(const std::string& sql) override {
+    std::unique_ptr<SQLStatement> prepare(const std::string& sql, int numParams/*=-1*/) override {
         sqlite3_stmt* stmt = nullptr;
-        if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        // int nBytes = sql.size()+1; // (the number of chars where 1 char = 1 byte) + 1 null_terminator
+        //param numParams ignored
+        if (sqlite3_prepare_v2(db_, sql.c_str(), sql.size()+1, &stmt, nullptr) != SQLITE_OK) {
             throw std::runtime_error("SQLite prepare failed: " + sql);
         }
         return std::make_unique<SQLiteStatement>(stmt);
     }
+
+    int64_t nextValue(std::string name) override {
+        return 0 ;
+    }
+
 
 private:
     bool execSQL(const char* sql) {
@@ -187,8 +168,6 @@ private:
 
     sqlite3* db_ = nullptr;
 };
-
-
 
 PSQLConnection make_sqlite_connection() {
     return std::make_unique<SQLiteConnection>();

@@ -1,44 +1,110 @@
 #!/bin/bash
 
-# A script to automate the build and test process for a CMake project.
-# This script assumes you are running it from the root of your project directory.
-#
-# Commands:
-# 1. Navigates up one directory (unnecessary if running from project root,
-#    but included to match the user's request).
-# 2. Deletes the old 'build' directory and creates a new one.
-# 3. Changes into the new 'build' directory.
-# 4. Runs CMake to configure the project.
-# 5. Builds the project using all available CPU cores.
-# 6. Runs all tests with CTest, displaying detailed output for failures.
+# Default build settings
+BUILD=0
+CONFIG=0
+SLOW=0
+CLEAN=0
+DEBUG=0
+VERBOSE=0
+TEST=0
 
-# Use 'set -e' to exit immediately if a command exits with a non-zero status.
-#set -e
+# Function to display help menu
+show_help() {
+    echo "Usage: $0 [OPTIONS]"
+    echo "Builds the project with specified options."
+    echo
+    echo "Options:"
+    echo "  -s, --slow      Build with just one core to avoid hangs."
+    echo "  -c, --clean     Removes the 'build' directory before building."
+    echo "  -d, --debug     Configures a debug build."
+    echo "  -v, --verbose   Enables verbose output for the build process."
+    echo "  -t, --test      Runs tests after building."
+    echo "  -h, --help      Display this help message and exit."
+    echo
+}
 
-# Step 1: Navigate up one directory (only if necessary)
-# This is here because your original request included "cd ..".
-# If you are already at the project root, you can remove this line.
-# cd ..
+# Parse command-line arguments
+for arg in "$@"; do
+    case "$arg" in
+        -s|--slow)
+            BUILD=1
+            SLOW=1
+            ;;
+        -c|--clean)
+            BUILD=1
+            CLEAN=1
+            CONFIG=1
+            ;;
+        -d|--debug)
+            BUILD=1
+            DEBUG=1
+            CONFIG=1
+            ;;
+        -v|--verbose)
+            VERBOSE=1
+            BUILD=1
+            ;;
+        -t|--test)
+            TEST=1
+            ;;
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            echo "Error: Unknown option '$arg'" >&2
+            show_help
+            exit 1
+            ;;
+    esac
+done
 
-# Step 2: Clean up old build files and create a new directory.
-echo "Removing old 'build' directory and creating a new one..."
-rm -rf build
-mkdir build
+# --- Build Logic ---
+CMAKE_ARGS="-S . -B build"
+BUILD_ARGS=""
 
-# Step 3: Change into the build directory.
-echo "Navigating into the 'build' directory..."
-cd build
+# Step 1: Handle --clean option
+if [ $CLEAN -eq 1 ]; then
+    echo "Removing build directory..."
+    rm -rf build
+    echo "Creating build directory..."
+    mkdir build
+fi
 
-# Step 4 & 5: Configure and build the project with CMake.
-# 'cmake ..' configures the project.
-# 'cmake --build .' builds it. The '-j' flag automatically uses all available CPU cores for a faster build.
-echo "Configuring and building the project..."
-cmake ..
-cmake --build . -j
+# Handle -d --debug option
+if [ $DEBUG -eq 1 ]; then
+    echo "Configuring DEBUG build..."
+    CMAKE_ARGS="-S . -B .. -DCMAKE_BUILD_TYPE=Debug"
+fi
 
-# Step 6: Run the tests with CTest.
-# The '--output-on-failure' flag is very useful for debugging test failures.
-echo "Running tests..."
-ctest --output-on-failure
+if [ $CONFIG -eq 1 ]; then
+    echo "Running CMake CONFIG with> cmake "$CMAKE_ARGS
+    cmake $CMAKE_ARGS
+fi
+
+# Step 4: Build the project
+
+if [ $VERBOSE -eq 1 ]; then
+    BUILD_ARGS+=" -VERBOSE=1"
+fi
+
+if [ $SLOW -eq 1 ]; then
+    BUILD_ARGS+=" -j1"
+else
+    BUILD_ARGS+=" -j"
+fi
+
+if [ $BUILD -eq 1 ]; then
+    echo "Building project with>  cmake --build . "$BUILD_ARGS
+    cmake --build . -- $BUILD_ARGS
+fi
+
+
+# Step 5: Run the tests if the --test flag was passed
+if [ $TEST -eq 1 ]; then
+    echo "Running tests..."
+    ctest --output-on-failure
+fi
 
 echo "Script finished successfully."

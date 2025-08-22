@@ -8,7 +8,7 @@
 class ULID {
 public:
     // Generate a new ULID string (Crockford's Base32, 26 chars)
-    static std::string generate() {
+    static std::string get_id() {
         // 48 bits timestamp (ms since Unix epoch)
         auto now = std::chrono::system_clock::now();
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();

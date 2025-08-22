@@ -1,13 +1,12 @@
 
 #include "catch.hpp"
-#include "orm.hpp"
 #include "schemamanager.hpp"
-#include <nlohmann/json.hpp>
 
 OrmSchema load_schema_from_json(const std::string& js) {
     OrmSchema s;
-    nlohmann::json j = nlohmann::json::parse(js);
-    OrmSchema::from_json(j, s);
+    jdoc doc;
+    jhlp::parse_str(js, doc);
+    OrmSchema::from_json(doc, s);
     return s;
 }
 

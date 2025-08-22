@@ -1,0 +1,64 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug orm (WSL)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/orm",
+            "args": [],
+            "cwd": "${workspaceFolder}/build",
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "environment": [],
+            "externalConsole": false,
+            "setupCommands": [
+                { "description": "Enable pretty printing", "text": "-enable-pretty-printing", "ignoreFailures": true },
+                { "description": "Source libstdc++ pretty printers", "text": "source /usr/share/gcc/python/libstdcxx/v6/printers.py", "ignoreFailures": true }
+            ]
+        },
+        {
+            "name": "Debug DML",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/test_dml",
+            "args": [
+                "-c",
+                "INSERT: PK absent"
+            ], // Catch2 test filter (adjust as needed)
+            "cwd": "${workspaceFolder}/build",
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "externalConsole": false
+        },
+        {
+            "name": "Debug DDL",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/test_ddl",
+            "args": [
+                "-c",
+                "INSERT: PK absent"
+            ], // Catch2 test filter (adjust as needed)
+            "cwd": "${workspaceFolder}/build",
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "externalConsole": false
+        },
+
+        {
+            "name": "Debug ctest (WSL)",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/usr/bin/ctest",
+            "args": [
+                "--output-on-failure",
+                "-R",
+                "test_dml"
+            ],
+            "cwd": "${workspaceFolder}/build",
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb"
+        }
+    ]
+}

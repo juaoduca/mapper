@@ -1,13 +1,12 @@
 #include "catch.hpp"
-#include "orm.hpp"
 #include "ddl_visitor.hpp"
-#include <nlohmann/json.hpp>
 #include <string>
 
 static OrmSchema load_schema_from_json(const std::string& js) {
-    OrmSchema s{};
-    auto j = nlohmann::json::parse(js);
-    REQUIRE(OrmSchema::from_json(j, s));
+    OrmSchema s;
+    jdoc doc;
+    jhlp::parse_str(js, doc);
+    REQUIRE(OrmSchema::from_json(doc, s));
     return s;
 }
 
@@ -27,7 +26,7 @@ TEST_CASE("sql_default emits correct SQL for all DefaultKind variants (Postgres 
 
     PgDDLVisitor pg;
     auto ddl_pg = pg.visit(schema);
-    REQUIRE(ddl_pg.find("CREATE TABLE users(") != std::string::npos);
+    REQUIRE(ddl_pg.find("CREATE TABLE IF NOT EXISTS users(") != std::string::npos);
     REQUIRE(ddl_pg.find("s TEXT") != std::string::npos);
     REQUIRE(ddl_pg.find("DEFAULT 'abc'") != std::string::npos);
     REQUIRE(ddl_pg.find("DEFAULT true") != std::string::npos);
@@ -37,7 +36,7 @@ TEST_CASE("sql_default emits correct SQL for all DefaultKind variants (Postgres 
 
     SqliteDDLVisitor sq;
     auto ddl_sq = sq.visit(schema);
-    REQUIRE(ddl_sq.find("CREATE TABLE users(") != std::string::npos);
+    REQUIRE(ddl_sq.find("CREATE TABLE IF NOT EXISTS users(") != std::string::npos);
     REQUIRE(ddl_sq.find("DEFAULT 'abc'") != std::string::npos);
     // SQLite may accept TRUE/FALSE or 1/0; we normalized to literal true/false in OrmSchema::from_json
     REQUIRE(ddl_sq.find("DEFAULT true") != std::string::npos);

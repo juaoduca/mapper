@@ -1,4 +1,6 @@
-    static constexpr const char *SCHEMA_CATALOG_JSON = R"JSON(
+#pragma once
+
+static constexpr const char *SCHEMA_CATALOG_JSON = R"JSON(
         {
             "$schema": "https://raw.githubusercontent.com/juaoduca/mapper/refs/heads/main/orm-meta-schema.json",
             "$id": "https://example.com/schemas/schema_catalog.json",
@@ -19,8 +21,8 @@
                 },
                 "version": {
                 "type": "integer",
-                "minimum": 1,
-                "default": "1"
+                "minimum": 0,
+                "default": "0"
                 },
                 "created_at": {
                 "type": "datetime",
@@ -58,6 +60,7 @@ static constexpr const char *SCHEMA_VERSIONS_JSON = R"JSON(
                 "type": "integer",
                 "minimum": 1,
                 "default": "1"
+                "unique": true
                 },
                 "applied": {
                 "type": "boolean",
@@ -71,3 +74,31 @@ static constexpr const char *SCHEMA_VERSIONS_JSON = R"JSON(
             "required": ["name", "schema", "version"]
         }
     )JSON";
+
+    static constexpr const char *SCHEMA_USERS = R"(
+        {
+            "$schema": "https://raw.githubusercontent.com/juaoduca/mapper/refs/heads/main/orm-meta-schema.json",
+            "$id": "https://example.com/schemas/schema_catalog.json",
+            "description": "Catalog of versioned JSON Schemas.",
+            "type": "object",
+            "name": "users",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "idprop": true,
+                    "idkind": "DBSerial"
+                },
+                "age": {
+                    "type": "integer",
+                },
+                "name": {
+                    "type": "string",
+                    "unique": true
+                }
+            },
+            "required": ["name", "age"]
+        }
+    )";
+
+
+

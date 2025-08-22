@@ -1,163 +1,237 @@
 #include "dml_visitor.hpp"
 #include <sstream>
 
-using nlohmann::json;
+
 
 namespace {
     std::string join(const std::vector<std::string>& xs, const char* sep) {
         std::ostringstream os;
-        for (size_t i=0;i<xs.size();++i) { if (i) os << sep; os << xs[i]; }
+        for (size_t i = 0; i < xs.size(); ++i) {
+            if (i) os << sep;
+            os << xs[i];
+        }
         return os.str();
     }
-};
+}
 
 /* ---- helpers ---- */
-const OrmField* DMLVisitor::find_pk(const OrmSchema& s) {
-    for (const auto& f : s.fields) if (f.is_id) return &f;
-    for (const auto& f : s.fields) if (f.name == "id") return &f;
-    return nullptr;
-}
+// const OrmProp* DMLVisitor::find_pk(const OrmSchema& s) {
+//     // Prefer explicit is_id; fall back to field named "id"
+//     for (const auto& kv : s.fields) {
+//         if (kv.second.is_id) return &kv.second;
+//     }
+//     if (auto it = s.fields.find("id"); it != s.fields.end())
+//         return &it->second;
+//     return nullptr;
+// }
 
-const json& DMLVisitor::first_object(const json& data) {
-    if (data.is_array()) {
-        if (data.empty()) throw std::runtime_error("JSON array is empty");
-        if (!data.front().is_object()) throw std::runtime_error("First array element is not an object");
-        return data.front();
-    }
-    if (!data.is_object()) throw std::runtime_error("JSON must be an object or array of objects");
-    return data;
-}
-
-std::vector<const OrmField*> DMLVisitor::select_fields_in_order(const OrmSchema& s,
-                                                                    const json& obj,
-                                                                    bool exclude_pk) {
-    std::vector<const OrmField*> cols;
-    const OrmField* pk = find_pk(s);
-    for (const auto& f : s.fields) {
-        if (exclude_pk && pk && f.name == pk->name) continue;
-        if (obj.contains(f.name)) cols.push_back(&f);
-    }
-    return cols;
-}
+// const jval& DMLVisitor::first_object(const jval& value) {
+//     if (value.IsArray()) {
+//         if (value.Empty()) throw std::runtime_error("JSON array is empty");
+//         const jval& val = value.MemberBegin()->value;
+//         if (!val.IsObject()) throw std::runtime_error("First array element is not an object");
+//         return val;
+//     }
+//     if (!value.IsObject()) throw std::runtime_error("JSON must be an object or array of objects");
+//     return value;
+// }
 
 /* ---- SQLite ---- */
 std::string SqliteDMLVisitor::ph(size_t i) const { return "?" + std::to_string(i); }
 
-std::string SqliteDMLVisitor::insert(const OrmSchema& s, const json& data) const {
-    const json& obj = first_object(data);
-    auto cols = select_fields_in_order(s, obj, false);
-    if (cols.empty()) throw std::runtime_error("insert: no fields present in JSON");
-    std::vector<std::string> names, vals; names.reserve(cols.size()); vals.reserve(cols.size());
-    for (size_t i=0;i<cols.size();++i) { names.push_back(cols[i]->name); vals.push_back(ph(i+1)); }
+dml_pair SqliteDMLVisitor::insert(const OrmSchema& s, const jval& value) const {
+
+    const OrmProp& pk = s.idprop();
+
+    const jval& obj = jhlp::first_obj(value);
+    if (!obj.IsObject() ) throw std::runtime_error("insert: JSON must be an object");
+
+    std::vector<std::string> names, vals;
+    size_t i = 0;
+    bool pk_in_json = false;
+
+    // Emit fields in JSON order
+    // for (auto it : members(obj) ) {
+    for (jit it = obj.MemberBegin(); it != obj.MemberEnd(); ++it) {
+        auto fit = s.fields.find(it->name.GetString());
+        if (fit == s.fields.end()) continue;             // ignore unknown keys
+        const auto& f = fit->second;
+        if (f.name == pk.name) pk_in_json = true;
+        names.push_back(f.name);
+        vals.push_back(ph(++i));
+    }
+
+    // If PK wasn't present in JSON, append it as the LAST column/param
+    if (!pk_in_json) {
+        names.push_back(pk.name);
+        vals.push_back(ph(++i));
+    }
+
+    if (names.empty()) throw std::runtime_error("insert: no fields present in JSON or schema");
+
     std::ostringstream sql;
-    sql << "INSERT INTO " << s.name << " (" << join(names, ", ") << ") VALUES (" << join(vals, ", ") << ");";
-    return sql.str();
+    sql << "INSERT INTO " << s.name << " (" << join(names, ", ")
+        << ") VALUES (" << join(vals, ", ") << ");";
+    return std::make_pair<std::string, int>(sql.str(), i);
 }
 
-std::string SqliteDMLVisitor::upsert(const OrmSchema& s, const json& data) const {
-    const OrmField* pk = find_pk(s); if (!pk) throw std::runtime_error("upsert: no PK");
-    const json& obj = first_object(data);
-    auto cols = select_fields_in_order(s, obj, false);
-    if (cols.empty()) throw std::runtime_error("upsert: no fields present in JSON");
+
+dml_pair SqliteDMLVisitor::upsert(OrmSchema& s, const jval& value) const {
+    const OrmProp& pk = s.idprop();
+
+    const jval& obj = jhlp::first_obj(value);
+    if (!value.IsObject()) throw std::runtime_error("upsert: JSON must be an object");
 
     std::vector<std::string> names, vals, sets;
-    names.reserve(cols.size()); vals.reserve(cols.size());
-    for (size_t i=0;i<cols.size();++i) {
-        names.push_back(cols[i]->name);
-        vals.push_back(ph(i+1));
-        if (cols[i]->name != pk->name) sets.push_back(cols[i]->name + " = excluded." + cols[i]->name);
+    size_t i = 0;
+    for (jit it = obj.MemberBegin(); it != obj.MemberEnd(); it++  ) {
+        auto fit = s.fields.find(it->name.GetString() );
+        if (fit == s.fields.end()) continue;
+        const auto& f = fit->second;
+        names.push_back(f.name);
+        vals.push_back(ph(++i));
+        if (f.name != pk.name) sets.push_back(f.name + std::string(" = excluded.") + f.name);
     }
+    if (names.empty()) throw std::runtime_error("upsert: no fields present in JSON");
+
     std::ostringstream sql;
     if (sets.empty()) {
         sql << "INSERT INTO " << s.name << " (" << join(names, ", ") << ") VALUES (" << join(vals, ", ")
-            << ") ON CONFLICT(" << pk->name << ") DO NOTHING;";
+            << ") ON CONFLICT(" << pk.name << ") DO NOTHING;";
     } else {
         sql << "INSERT INTO " << s.name << " (" << join(names, ", ") << ") VALUES (" << join(vals, ", ")
-            << ") ON CONFLICT(" << pk->name << ") DO UPDATE SET " << join(sets, ", ") << ";";
+            << ") ON CONFLICT(" << pk.name << ") DO UPDATE SET " << join(sets, ", ") << ";";
     }
-    return sql.str();
+    return std::make_pair<str, int>(sql.str(), 1);
 }
 
-std::string SqliteDMLVisitor::update(const OrmSchema& s, const json& data) const {
-    const OrmField* pk = find_pk(s); if (!pk) throw std::runtime_error("update: no PK");
-    const json& obj = first_object(data);
-    auto cols = select_fields_in_order(s, obj, true);
-    if (cols.empty()) throw std::runtime_error("update: JSON has no updatable fields");
+dml_pair SqliteDMLVisitor::update(OrmSchema& s, const jval& value) const {
+    const OrmProp& pk = s.idprop();
 
-    std::vector<std::string> sets; sets.reserve(cols.size());
-    for (size_t i=0;i<cols.size();++i) sets.push_back(cols[i]->name + " = " + ph(i+1));
-    const size_t pk_idx = cols.size() + 1;
+    const jval& obj = jhlp::first_obj(value);
+    if (!obj.IsObject()) throw std::runtime_error("update: JSON must be an object");
 
+    std::vector<std::string> sets;
+    size_t i = 0, non_pk_count = 0;
+
+    for (jit it = obj.MemberBegin(); it != obj.MemberEnd(); it++ ) {
+        auto fit = s.fields.find(it->name.GetString() );
+        if (fit == s.fields.end()) continue;
+        const auto& f = fit->second;
+        if (f.name == pk.name) continue;
+        sets.push_back(f.name + " = " + ph(++i));
+        ++non_pk_count;
+    }
+    if (sets.empty()) throw std::runtime_error("update: JSON has no updatable fields");
+
+    const size_t pk_idx = non_pk_count + 1;
     std::ostringstream sql;
     sql << "UPDATE " << s.name << " SET " << join(sets, ", ")
-        << " WHERE " << pk->name << " = " << ph(pk_idx) << ";";
-    return sql.str();
+        << " WHERE " << pk.name << " = " << ph(pk_idx) << ";";
+    return std::make_pair<str, int>(sql.str(), 1);
 }
 
-std::string SqliteDMLVisitor::remove(const OrmSchema& s, const json&) const {
-    const OrmField* pk = find_pk(s); if (!pk) throw std::runtime_error("delete: no PK");
+dml_pair SqliteDMLVisitor::remove(OrmSchema& s, const jval&) const {
+    const OrmProp& pk = s.idprop();
+
     std::ostringstream sql;
-    sql << "DELETE FROM " << s.name << " WHERE " << pk->name << " = " << ph(1) << ";";
-    return sql.str();
+    sql << "DELETE FROM " << s.name << " WHERE " << pk.name << " = " << ph(1) << ";";
+    return std::make_pair<str, int>(sql.str(), 1);
 }
 
 /* ---- Postgres ---- */
 std::string PgDMLVisitor::ph(size_t i) const { return "$" + std::to_string(i); }
 
-std::string PgDMLVisitor::insert(const OrmSchema& s, const json& data) const {
-    const json& obj = first_object(data);
-    auto cols = select_fields_in_order(s, obj, false);
-    if (cols.empty()) throw std::runtime_error("insert: no fields present in JSON");
-    std::vector<std::string> names, vals; names.reserve(cols.size()); vals.reserve(cols.size());
-    for (size_t i=0;i<cols.size();++i) { names.push_back(cols[i]->name); vals.push_back(ph(i+1)); }
+dml_pair PgDMLVisitor::insert(const OrmSchema& s, const jval& value) const {
+    const OrmProp& pk = s.idprop();
+
+    const jval& obj = jhlp::first_obj(value);
+    if (!value.IsObject()) throw std::runtime_error("insert: JSON must be an object");
+
+    std::vector<std::string> names, vals;
+    size_t i = 0;
+    bool pk_in_json = false;
+
+    for (jit it = obj.MemberBegin(); it != obj.MemberEnd(); it++ ) {
+        auto fit = s.fields.find(it->name.GetString() );
+        if (fit == s.fields.end()) continue;
+        const auto& f = fit->second;
+        if (f.name == pk.name) pk_in_json = true;
+        names.push_back(f.name);
+        vals.push_back(ph(++i));      // uses $i
+    }
+
+    if (!pk_in_json) {
+        names.push_back(pk.name);
+        vals.push_back(ph(++i));
+    }
+
+    if (names.empty()) throw std::runtime_error("insert: no fields present in JSON or schema");
+
     std::ostringstream sql;
-    sql << "INSERT INTO " << s.name << " (" << join(names, ", ") << ") VALUES (" << join(vals, ", ") << ");";
-    return sql.str();
+    sql << "INSERT INTO " << s.name << " (" << join(names, ", ")
+        << ") VALUES (" << join(vals, ", ") << ");";
+    return std::make_pair<str, int>(sql.str(), 1);
 }
 
-std::string PgDMLVisitor::upsert(const OrmSchema& s, const json& data) const {
-    const OrmField* pk = find_pk(s); if (!pk) throw std::runtime_error("upsert: no PK");
-    const json& obj = first_object(data);
-    auto cols = select_fields_in_order(s, obj, false);
-    if (cols.empty()) throw std::runtime_error("upsert: no fields present in JSON");
+
+dml_pair PgDMLVisitor::upsert(OrmSchema& s, const jval& value) const {
+    const OrmProp& pk = s.idprop();
+
+    const jval& obj = jhlp::first_obj(value);
+    if (!value.IsObject()) throw std::runtime_error("insert: JSON must be an object");
 
     std::vector<std::string> names, vals, sets;
-    names.reserve(cols.size()); vals.reserve(cols.size());
-    for (size_t i=0;i<cols.size();++i) {
-        names.push_back(cols[i]->name);
-        vals.push_back(ph(i+1));
-        if (cols[i]->name != pk->name) sets.push_back(cols[i]->name + " = excluded." + cols[i]->name);
+    size_t i = 0;
+    for (jit it = obj.MemberBegin(); it != obj.MemberEnd(); it++ ) {
+        auto fit = s.fields.find(it->name.GetString() );
+        if (fit == s.fields.end()) continue;
+        const auto& f = fit->second;
+        names.push_back(f.name);
+        vals.push_back(ph(++i));
+        if (f.name != pk.name) sets.push_back(f.name + std::string(" = excluded.") + f.name);
     }
+    if (names.empty()) throw std::runtime_error("upsert: no fields present in JSON");
+
     std::ostringstream sql;
     if (sets.empty()) {
         sql << "INSERT INTO " << s.name << " (" << join(names, ", ") << ") VALUES (" << join(vals, ", ")
-            << ") ON CONFLICT(" << pk->name << ") DO NOTHING;";
+            << ") ON CONFLICT(" << pk.name << ") DO NOTHING;";
     } else {
         sql << "INSERT INTO " << s.name << " (" << join(names, ", ") << ") VALUES (" << join(vals, ", ")
-            << ") ON CONFLICT(" << pk->name << ") DO UPDATE SET " << join(sets, ", ") << ";";
+            << ") ON CONFLICT(" << pk.name << ") DO UPDATE SET " << join(sets, ", ") << ";";
     }
-    return sql.str();
+    return std::make_pair<str, int>(sql.str(), 1);
 }
 
-std::string PgDMLVisitor::update(const OrmSchema& s, const json& data) const {
-    const OrmField* pk = find_pk(s); if (!pk) throw std::runtime_error("update: no PK");
-    const json& obj = first_object(data);
-    auto cols = select_fields_in_order(s, obj, true);
-    if (cols.empty()) throw std::runtime_error("update: JSON has no updatable fields");
+dml_pair PgDMLVisitor::update(OrmSchema& s, const jval& value) const {
+    const OrmProp& pk = s.idprop();
 
-    std::vector<std::string> sets; sets.reserve(cols.size());
-    for (size_t i=0;i<cols.size();++i) sets.push_back(cols[i]->name + " = " + ph(i+1));
-    const size_t pk_idx = cols.size() + 1;
+    const jval& obj = jhlp::first_obj(value);
+    if (!value.IsObject()) throw std::runtime_error("insert: JSON must be an object");
 
+    std::vector<std::string> sets;
+    size_t i = 0, non_pk_count = 0;
+    for (jit it = obj.MemberBegin(); it != obj.MemberEnd(); it++ ) {
+        auto fit = s.fields.find(it->name.GetString() );
+        if (fit == s.fields.end()) continue;
+        const auto& f = fit->second;
+        if (f.name == pk.name) continue;
+        sets.push_back(f.name + " = " + ph(++i));
+        ++non_pk_count;
+    }
+    if (sets.empty()) throw std::runtime_error("update: JSON has no updatable fields");
+
+    const size_t pk_idx = non_pk_count + 1;
     std::ostringstream sql;
     sql << "UPDATE " << s.name << " SET " << join(sets, ", ")
-        << " WHERE " << pk->name << " = " << ph(pk_idx) << ";";
-    return sql.str();
+        << " WHERE " << pk.name << " = " << ph(pk_idx) << ";";
+    return std::make_pair<str, int>(sql.str(), 1);
 }
 
-std::string PgDMLVisitor::remove(const OrmSchema& s, const json&) const {
-    const OrmField* pk = find_pk(s); if (!pk) throw std::runtime_error("delete: no PK");
+dml_pair PgDMLVisitor::remove(OrmSchema& s, const jval&) const {
+    const OrmProp& pk = s.idprop();
     std::ostringstream sql;
-    sql << "DELETE FROM " << s.name << " WHERE " << pk->name << " = " << ph(1) << ";";
-    return sql.str();
+    sql << "DELETE FROM " << s.name << " WHERE " << pk.name << " = " << ph(1) << ";";
+    return std::make_pair<str, int>(sql.str(), 1);
 }

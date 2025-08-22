@@ -3,26 +3,17 @@
 #include <iostream>
 #include <sstream>
 
-class SQLVisitor {
+class DDLVisitor {
 public:
-    virtual ~SQLVisitor() = default;
+    virtual ~DDLVisitor() = default;
     virtual std::string visit(const OrmSchema& schema) = 0;
+    virtual std::string sql_type(const OrmProp& f) = 0;
+    virtual std::string sql_default(const OrmProp& f);
 };
-
-class DDLVisitor: public SQLVisitor {
-public:
-    std::string visit(const OrmSchema& schema) override;
-
-    void print_fields(const OrmSchema& schema) const;
-    std::string sql_type(const OrmField& f) const;
-    std::string sql_default(const OrmField& f) const;
-
-};
-
 
 class PgDDLVisitor : public DDLVisitor {
 public:
-    std::string sql_type(const OrmField& f) const;
+    std::string sql_type(const OrmProp& f) override;
     std::string generate_ddl(const OrmSchema& schema);
     std::string visit(const OrmSchema& schema) override;
 private:
@@ -32,7 +23,7 @@ private:
 
 class SqliteDDLVisitor : public DDLVisitor {
 public:
-    std::string sql_type(const OrmField& f) const;
+    std::string sql_type(const OrmProp& f) override;
     std::string generate_ddl(const OrmSchema& schema);
-    std::string  visit(const OrmSchema& schema) override;
+    std::string visit(const OrmSchema& schema) override;
 };

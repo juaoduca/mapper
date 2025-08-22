@@ -7,12 +7,13 @@ SchemaManager::SchemaManager(const OrmSchema& old_schema, const OrmSchema& new_s
     : old_schema_(old_schema), new_schema_(new_schema) {}
 
 std::vector<std::string> SchemaManager::plan_migration(const std::string& db_engine) {
+
     std::vector<std::string> ddl_statements;
 
     // Build maps for quick lookup
-    std::unordered_map<std::string, OrmField> old_fields, new_fields;
-    for (const auto& f : old_schema_.fields) old_fields[f.name] = f;
-    for (const auto& f : new_schema_.fields) new_fields[f.name] = f;
+    std::unordered_map<std::string, OrmProp> old_fields, new_fields;
+    for (const auto& f : old_schema_.fields) old_fields[f.second.name] = f.second;
+    for (const auto& f : new_schema_.fields) new_fields[f.second.name] = f.second;
 
     // ADD & ALTER columns
     for (const auto& [name, nf] : new_fields) {
@@ -31,10 +32,10 @@ std::vector<std::string> SchemaManager::plan_migration(const std::string& db_eng
         } else {
             const auto& of = it->second;
             // ALTER COLUMN TYPE
-            if (nf.type != of.type) {
-                ddl_statements.push_back("ALTER TABLE users ALTER COLUMN " + nf.name +
-                    " TYPE " + nf.type + ";");
-            }
+            // if (nf.type != of.type) {
+            //     ddl_statements.push_back("ALTER TABLE users ALTER COLUMN " + nf.name +
+            //         " TYPE " + nf.type + ";");
+            // }
             // ALTER COLUMN DEFAULT
             if (nf.default_value != of.default_value) {
                 ddl_statements.push_back("ALTER TABLE users ALTER COLUMN " + nf.name +

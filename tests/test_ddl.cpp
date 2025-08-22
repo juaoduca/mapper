@@ -1,14 +1,13 @@
 #include "catch.hpp"
-#include "orm.hpp"
 #include "ddl_visitor.hpp"
-#include <nlohmann/json.hpp>
 #include <string>
 
 // Helper: build schema from JSON string
 OrmSchema load_schema(const std::string& js) {
     OrmSchema s;
-    nlohmann::json j = nlohmann::json::parse(js);
-    OrmSchema::from_json(j, s);
+    jdoc doc;
+    jhlp::parse_str(js, doc);
+    OrmSchema::from_json(doc, s);
     return s;
 }
 
