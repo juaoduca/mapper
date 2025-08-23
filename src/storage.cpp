@@ -10,6 +10,7 @@
 #include "dbpool.hpp"
 #include "ddl_visitor.hpp"
 #include "dml_visitor.hpp"
+#include "lib.hpp"
 
 // Forward declarations for connection factories
 PSQLConnection make_sqlite_connection();
@@ -43,12 +44,12 @@ namespace {
     // // Select the first object (array -> first elem)
     // const jval& first_obj(const jval& value) {
     //     if (value.IsArray()) {
-    //         if (value.Empty()) throw std::runtime_error("empty JSON array");
+    //         if (value.Empty()) THROW("empty JSON array");
     //         auto& v = value.MemberBegin()->value; // json obj do iterator
-    //         if (!v.IsObject()) throw std::runtime_error("array elements must be objects");
+    //         if (!v.IsObject()) THROW("array elements must be objects");
     //         return v;
     //     }
-    //     if (!value.IsObject()) throw std::runtime_error("JSON must be an object or array of objects");
+    //     if (!value.IsObject()) THROW("JSON must be an object or array of objects");
     //     return value;
     // }
 
@@ -93,11 +94,11 @@ Storage::Storage(const std::string& db_path, Dialect dialect)
         // std::string db_path = "host=localhost port=5432 dbname=ecm user=ecm password=ecm"
         dbpool_ = std::make_unique<DbPool>(/*capacity*/ 10, db_path, make_postgres_connection, pol);
 #else
-        throw std::runtime_error("PostgreSQL support not built in");
+        THROW("PostgreSQL support not built in");
 #endif
         break;
     default:
-        throw std::runtime_error("Unsupported dialect");
+        THROW("Unsupported dialect");
     }
 
     // Connect to database
@@ -227,7 +228,7 @@ bool Storage::init_catalog() {
                 if (stmt && stmt->exec() < 0) {
                     std::stringstream s;
                     s << "DDL Failed: " << ddl;
-                    throw std::runtime_error(s.str());
+                    THROW(s.str());
                 }
                 // add to in-memory catalog_
                 addSchema(schema, nullptr);
@@ -257,7 +258,7 @@ int Storage::insert(const std::string& schemaName, jval& doc, const std::string&
     // 1 - find schema
     auto it = catalog_.find(schemaName);
     if (it == catalog_.end())
-        throw std::runtime_error("Schema not found: " + schemaName);
+        THROW("Schema not found: " + schemaName);
     OrmSchema& schema = *(it->second);
     // call insert withing a trx control - aouto release connection
     auto rowsaff = with_conn(pool::DbIntent::Write,
@@ -272,7 +273,7 @@ int Storage::insert(const std::string& schemaName, jval& doc, const std::string&
                 // 5 - commit
                 if (!conn.commit()) {
                     conn.rollback();
-                    throw std::runtime_error("commit fail! transaction rolled back");
+                    THROW("commit fail! transaction rolled back");
                 };
                 return rows;
             } catch (...) {
@@ -287,7 +288,7 @@ int Storage::insert(const std::string& schemaName, jval& doc, const std::string&
 int Storage::insert(SQLConnection& conn, OrmSchema& schema, jval& data, const std::string& trackinfo) {
 
     const jval& job = jhlp::first_obj(data); // object or array; first_object semantics for DML
-    const OrmProp& pkField = schema.idprop();
+    const std::shared_ptr<OrmProp> pkField = schema.idprop();
 
     // Build both SQLs from the first object shape; we will choose per row.
     // const std::pair<std::string, int> dmlVisitor_->insert(schema, job);
@@ -302,16 +303,16 @@ int Storage::insert(SQLConnection& conn, OrmSchema& schema, jval& data, const st
 
     // //called for each object
     // auto pk_is_present = [&](const jval& obj) -> bool {
-    //     return obj.IsObject() && obj.HasMember(pkField.name.c_str());
+    //     return obj.IsObject() && obj.HasMember(pkField->name.c_str());
     // };
 
     //called for each object
     auto pk_is_valid = [&](const jval& obj) -> bool {
         if (!has_id(obj)) return false;
-        if (obj.HasMember(pkField.name.c_str()) ) {
-            const jval& v = obj.FindMember(pkField.name.c_str())->value;
+        if (obj.HasMember(pkField->name.c_str()) ) {
+            const jval& v = obj.FindMember(pkField->name.c_str())->value;
             // Minimal validity: non-null and non-zero/empty by type
-            if (pkField.type == PropType::Integer || pkField.type == PropType::Number) {
+            if (pkField->type == PropType::Integer || pkField->type == PropType::Number) {
                 if (!v.IsNumber() && !v.IsInt() && !v.IsFloat()) return false;
                 // treat 0 as invalid for generated ids
                 return (v.IsFloat()) ? v.GetDouble() != 0.0 : v.GetInt()!= 0;
@@ -339,7 +340,7 @@ int Storage::insert(SQLConnection& conn, OrmSchema& schema, jval& data, const st
         jdoc newid; // null by default
         newid.SetObject();
         if (!isUpsert) {
-            create_id(const_cast<OrmProp&>(pkField), newid, "id");
+            create_id( pkField, newid, "id");
         }
 
         // Bind in JSON key order for keys that exist in schema
@@ -359,7 +360,7 @@ int Storage::insert(SQLConnection& conn, OrmSchema& schema, jval& data, const st
 
         // if not upsert and not have pk - PK is the last
         if (!isUpsert) {
-            stmt.bind(paramIndex++, newid, pkField.type);
+            stmt.bind(paramIndex++, newid, pkField->type);
         }
 
         // exec
@@ -390,7 +391,7 @@ int Storage::update(const std::string& schemaName, jval& value, const std::strin
     // 1 - find schema
     auto it = catalog_.find(schemaName);
     if (it == catalog_.end())
-        throw std::runtime_error("Schema not found: " + schemaName);
+        THROW("Schema not found: " + schemaName);
     OrmSchema& schema = *(it->second);
 
     // call update withing a trx control - auto release connection
@@ -406,7 +407,7 @@ int Storage::update(const std::string& schemaName, jval& value, const std::strin
                 // 5 - commit
                 if (!conn.commit()) {
                     conn.rollback();
-                    throw std::runtime_error("commit fail! transaction rolled back");
+                    THROW("commit fail! transaction rolled back");
                 };
                 return rows;
             } catch (...) {
@@ -423,7 +424,7 @@ int Storage::update(SQLConnection& conn, OrmSchema& schema, jval& value, const s
     // 1 - build SQL via DMLVisitor
     int rowsAffected = 0;
     const jval& obj = jhlp::first_obj(value);
-    if (!has_id(obj)) throw std::runtime_error("object must have an ID");
+    if (!has_id(obj)) THROW("object must have an ID");
 
     dml_pair sql = dmlVisitor_->update(schema, obj);
 
@@ -435,7 +436,7 @@ int Storage::update(SQLConnection& conn, OrmSchema& schema, jval& value, const s
 
         auto processOne = [&](const jval& val) {
             // 5.1 - check ID
-            if (!has_id(val)) throw std::runtime_error("object must have an ID");
+            if (!has_id(val)) THROW("object must have an ID");
 
             // 5.2 - bind params (schema fields that exist in job)
             int paramIndex = 1; // one base index not zero based
@@ -457,6 +458,7 @@ int Storage::update(SQLConnection& conn, OrmSchema& schema, jval& value, const s
                     }
                 }
             }
+            //bind last param = where id = ?$1
             stmt->bind(paramIndex++, idvalue, idprop.type);
 
             // execute
@@ -482,7 +484,7 @@ int Storage::update(SQLConnection& conn, OrmSchema& schema, jval& value, const s
         // 6 - do not commit or rollback - caller control the Transaction(trx)
         // if (!conn.commit()) {
         //     conn.rollback();
-        //     throw std::runtime_error("commit fail - transaction rolled back");
+        //     THROW("commit fail - transaction rolled back");
         // }
 
         // 7 - notify subscribers
@@ -508,14 +510,14 @@ int Storage::update(SQLConnection& conn, OrmSchema& schema, jval& value, const s
  * @return The generated ID of type T.
  */
 
-inline void Storage::create_id(OrmProp& prop, jdoc& doc, std::string key) {
+inline void Storage::create_id(const std::shared_ptr<OrmProp> idprop, jdoc& doc, std::string key) {
     const char* ck = key.c_str();
-    switch (prop.id_kind) {
+    switch (idprop->id_kind) {
         case IdKind::UUIDv7:{
             if (!doc.HasMember(ck)) { jhlp::set<std::string>(doc, key, ULID::get_id()); return ;}
             jval& val = doc.FindMember(ck)->value;
             if (!val.IsString())
-                throw std::runtime_error("JSON Field must have a STRING datatype!");
+                THROW("JSON Field must have a STRING datatype!");
             val.SetString(ULID::get_id().c_str(), doc.GetAllocator());
         }break;
         case IdKind::HighLow:
@@ -523,7 +525,7 @@ inline void Storage::create_id(OrmProp& prop, jdoc& doc, std::string key) {
             if (!doc.HasMember(ck)) { jhlp::set<int64_t>(doc, key, snowflake_.get_id()); return ;}
             jval& val = doc.FindMember(ck)->value;
             if (!val.IsInt64())
-                throw std::runtime_error("JSON Field must have a NUMBER/INTEGER datatype!");
+                THROW("JSON Field must have a NUMBER/INTEGER datatype!");
             val.SetInt64(snowflake_.get_id());
         }break;
         case IdKind::DBSerial:
@@ -531,30 +533,30 @@ inline void Storage::create_id(OrmProp& prop, jdoc& doc, std::string key) {
             if (!doc.HasMember(ck)) { jhlp::set<int64_t>(doc, key, snowflake_.get_id()); }
             jval& val = doc.FindMember(ck)->value;
             if (!val.IsInt64())
-                throw std::runtime_error("JSON Field must have a NUMBER/INTEGER datatype!");
+                THROW("JSON Field must have a NUMBER/INTEGER datatype!");
 
             //here we need the SQLconnection to get serial from DB
             auto rowsaff = with_conn(pool::DbIntent::Write,
                 [&](SQLConnection& conn)->int {
                     int64_t id;
-                    if(prop.id_kind == IdKind::TBSerial)
-                        id = conn.nextValue(prop.schema_name);
+                    if(idprop->id_kind == IdKind::TBSerial)
+                        id = conn.nextValue(idprop->schema_name);
                     else
-                        id = conn.nextValue("db"); // or  conn.nextValue(prop.schema_name); for TBSerial
+                        id = conn.nextValue("db"); // or  conn.nextValue(idprop->schema_name); for TBSerial
                     val.SetInt64(id);
                     return 1;
                 }
             );
         }break;
         default:
-            throw std::runtime_error("Unsupported ID kind.");
+            THROW("Unsupported ID kind.");
     }
 }
 // void Storage::del(const std::string &table, const json &pk_data,
 //                   const std::string & /*user*/, const std::string & /*context*/)
 // {
 //     if (!pk_data.contains("id"))
-//         throw std::runtime_error("Delete requires PK field 'id'");
+//         THROW("Delete requires PK field 'id'");
 //     std::string id = pk_data["id"];
 
 //     std::string sql = "DELETE FROM " + table + " WHERE id = ?;";

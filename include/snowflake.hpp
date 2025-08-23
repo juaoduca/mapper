@@ -3,6 +3,7 @@
 #include <chrono>
 #include <mutex>
 #include <stdexcept>
+#include "lib.hpp"
 
 // The Snowflake ID generator class.
 class SnowflakeIdGenerator {
@@ -12,10 +13,10 @@ public:
     SnowflakeIdGenerator(int workerId, int datacenterId)
         : workerId_(workerId), datacenterId_(datacenterId), lastTimestamp_(1) {
         if (workerId_ > MAX_WORKER_ID || workerId_ < 0) {
-            throw std::runtime_error("Worker ID must be between 0 and 31");
+            THROW("Worker ID must be between 0 and 31");
         }
         if (datacenterId_ > MAX_DATACENTER_ID || datacenterId_ < 0) {
-            throw std::runtime_error("Datacenter ID must be between 0 and 31");
+            THROW("Datacenter ID must be between 0 and 31");
         }
     }
 
@@ -28,7 +29,7 @@ public:
 
         // Check if the clock has moved backwards.
         if (timestamp < lastTimestamp_) {
-            throw std::runtime_error("Clock moved backwards. Refusing to generate ID for " + std::to_string(lastTimestamp_ - timestamp) + " milliseconds");
+            THROW("Clock moved backwards. Refusing to generate ID for " + std::to_string(lastTimestamp_ - timestamp) + " milliseconds");
         }
 
         // If we are in the same millisecond as the last ID, increment the sequence.

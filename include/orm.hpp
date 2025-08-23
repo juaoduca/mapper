@@ -6,6 +6,7 @@
 #include <string_view>
 #include <stdexcept>
 #include "jsonhlp.hpp"
+#include "lib.hpp"
 
 /****************** LIERAL CONSTS */
 #define VAL_NULL        "NULL"
@@ -69,11 +70,14 @@ public:
     int version;
     bool applied;
     std::string json;
+    //unordered_map so the fields keep the order they appear in JSONSchema string
+    //so the DDLVisitor will create the tables fields in this same order
+    // the search is made by a hash seach
     std::unordered_map<std::string, OrmProp> fields;
     std::vector<OrmIndex> indexes;
 
     // void accept(class DDLVisitor& visitor) const;
-    const OrmProp& idprop() const;
+    const std::shared_ptr<OrmProp> idprop() const ;
     static bool from_json(jdoc& doc, OrmSchema& schema);
 };
 
@@ -89,7 +93,7 @@ PropType proptype(std::string type);
 //     if (type == "timestamp") return PropType::Tm_Stamp ;
 //     if (type == "binary"   ) return PropType::Bin      ;
 //     if (type == "json"     ) return PropType::Json     ;
-//     throw std::runtime_error("Invalid type name: "+type);
+//     THROW("Invalid type name: "+type);
 // }
 
 std::string proptype(PropType type);
@@ -104,6 +108,6 @@ std::string proptype(PropType type);
 //     if (type == PropType::Tm_Stamp) return  "timestamp";
 //     if (type == PropType::Bin     ) return  "binary"   ;
 //     if (type == PropType::Json    ) return  "json"     ;
-//     throw std::runtime_error("Invalid proptype name: "+int(type));
+//     THROW("Invalid proptype name: "+int(type));
 // }
 

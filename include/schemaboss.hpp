@@ -23,7 +23,7 @@
 class SchemaBoss {
 public:
     struct Version {
-        std::shared_ptr<OrmSchema> s; // stored schema (immutable content)
+        std::shared_ptr<OrmSchema> schema; // stored schema (immutable content)
         bool applied  = false;         // DDL applied to DB at some point
         bool inactive = false;         // not the latest applied (new users should not receive)
         int  in_use   = 0;             // reserved for future leasing (old users finish jobs)

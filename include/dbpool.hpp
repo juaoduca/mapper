@@ -7,6 +7,7 @@
 #include <mutex>
 #include <sqlconnection.hpp>
 #include <stdexcept>
+#include "lib.hpp"
 
 using PConn = std::shared_ptr<SQLConnection>;
 
@@ -198,9 +199,9 @@ private:
         std::lock_guard<std::mutex> lk(mx_);
         free_.clear();
         for (std::size_t i = 0; i < cap_; ++i) {
-            if (!factory_) throw std::runtime_error("DbPool: null connection factory");
+            if (!factory_) THROW("DbPool: null connection factory");
             PSQLConnection up = factory_();
-            if (!up) throw std::runtime_error("DbPool: factory returned null connection");
+            if (!up) THROW("DbPool: factory returned null connection");
             up->connect(dsn_);
             // move unique_ptr -> shared_ptr with custom deleter
             std::shared_ptr<SQLConnection> sp(up.release(), [](SQLConnection* p) { delete p; });

@@ -14,6 +14,7 @@
 #include <vector>
 #include <fstream>
 #include <stdexcept>
+#include "lib.hpp"
 
 namespace json = rapidjson;
 using jdoc = json::Document;
@@ -68,12 +69,12 @@ namespace jhlp {
 
     inline const jval& first_obj(const jval& value) {
         if (value.IsArray()) {
-            if (value.Empty()) throw std::runtime_error("JSON array is empty");
+            if (value.Empty()) THROW("JSON array is empty");
             const jval& val = value.MemberBegin()->value;
-            if (!val.IsObject()) throw std::runtime_error("First array element is not an object");
+            if (!val.IsObject()) THROW("First array element is not an object");
             return val;
         }
-        if (!value.IsObject()) throw std::runtime_error("JSON must be an object or array of objects");
+        if (!value.IsObject()) THROW("JSON must be an object or array of objects");
         return value;
     }
 

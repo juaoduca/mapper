@@ -109,18 +109,19 @@ bool OrmSchema::from_json( jdoc& doc, OrmSchema& schema) {
 // }
 
 
-const OrmProp& OrmSchema::idprop() const {
+const std::shared_ptr<OrmProp> OrmSchema::idprop() const {
     for (auto& pair : fields) {
         if (pair.second.is_id) {
             // Return a reference to the found object
-            return pair.second;
+            return std::make_shared<OrmProp>(pair.second);
         }
         if (pair.second.name == "id") {
-            return pair.second;
+            return std::make_shared<OrmProp>(pair.second);
         }
     }
     // Return an empty optional if no ID property is found
-    throw er("Schema: \""+name+"\" have no ID Prop");
+    THROW("Schema: '%s' have no ID Prop", name);
+    return nullptr;
 }
 
 
@@ -135,7 +136,8 @@ PropType proptype(std::string type) {
     if (type == "timestamp") return PropType::Tm_Stamp ;
     if (type == "binary"   ) return PropType::Bin      ;
     if (type == "json"     ) return PropType::Json     ;
-    throw std::runtime_error("Invalid type name: "+type);
+    THROW("Invalid type name: %s" , type);
+    return PropType::String;
 }
 
 std::string proptype(PropType type) {
@@ -149,5 +151,6 @@ std::string proptype(PropType type) {
     if (type == PropType::Tm_Stamp) return  "timestamp";
     if (type == PropType::Bin     ) return  "binary"   ;
     if (type == PropType::Json    ) return  "json"     ;
-    throw std::runtime_error("Invalid proptype name: "+int(type));
+    THROW("Invalid proptype value: %d", type);
+    return "";
 }

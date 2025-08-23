@@ -24,7 +24,7 @@ public:
         switch (type) {
             case PropType::String: {
                 if(value.IsString()) {str v= value.GetString(); set_text(idx, "'"+v+"'"); return;}
-                throw er("bind: expected string"); return;
+                THROW("bind: expected string"); return;
             }break;
             case PropType::Integer:
             case PropType::Number : {
@@ -34,36 +34,36 @@ public:
                 if (value.IsUint64 ()) {uint64_t v = value.GetUint64 (); set_text(idx, std::to_string(v)); return; }
                 if (value.IsFloat  ()) {float    v = value.GetDouble (); set_text(idx, std::to_string(v)); return; }
                 if (value.IsDouble ()) {double   v = value.GetDouble (); set_text(idx, std::to_string(v)); return; }
-                throw er("bind: expected integer or number");
+                THROW("bind: expected integer or number");
             }; break;
             case PropType::Bool: {
                 if(value.IsBool()){set_bool(idx, value.GetBool() ); return;}
                 if (value.IsInt()){set_bool(idx, value.GetInt() == 1 ? true : false);return;} // 0=false 1 = true
-                throw er("bind: expected boolean");
+                THROW("bind: expected boolean");
             }; break;
             case PropType::Date:
             case PropType::Time:
             case PropType::Dt_Time:
             case PropType::Tm_Stamp: {
                 if (!value.IsString()) {set_datetime(idx, value.GetString()); return;}
-                throw er("bind: expected ISO-8601 string for date/time");
+                THROW("bind: expected ISO-8601 string for date/time");
             };break;
             case PropType::Json: {
                 if (value.IsObject()) {set_text(idx, jhlp::dump(value)); return;}
                 if (value.IsArray() ) {set_text(idx, jhlp::dump(value)); return;}
                 if (value.IsString()) {set_text(idx, value.GetString()); return;}
-                throw er("bind: expected JSON object JSON array or string");
+                THROW("bind: expected JSON object JSON array or string");
             }break;
             case PropType::Bin: {
                 if (value.IsString()) {set_encoded(idx, value.GetString()); return;}
-                throw er("bind: expected binary as yEnc string");
+                THROW("bind: expected binary as yEnc string");
             }
         }
-        throw std::runtime_error("bind: unsupported declared type for Postgres");
+        THROW("bind: unsupported declared type for Postgres");
 
         // // 2) Match declared schema type (strict)
         // if (type == PropType::String) {
-        //     if (!value.IsString()) throw er("bind: expected string");
+        //     if (!value.IsString()) THROW("bind: expected string");
         //     set_text(value.GetString());
         //     return;
         // }
@@ -75,7 +75,7 @@ public:
         //     if (value.IsUint64 ()) {uint64_t v = value.GetUint64 (); set_text(std::to_string(v)); return; }
         //     if (value.IsFloat  ()) {float    v = value.GetDouble (); set_text(std::to_string(v)); return; }
         //     if (value.IsDouble ()) {double   v = value.GetDouble (); set_text(std::to_string(v)); return; }
-        //     throw std::runtime_error("bind: expected integer or number");
+        //     THROW("bind: expected integer or number");
         // }
 
         // if (type == PropType::Bool) {
@@ -87,12 +87,12 @@ public:
         //         set_text(bool_to_text(value.GetInt() != 0));
         //         return;
         //     }
-        //     throw std::runtime_error("bind: expected boolean");
+        //     THROW("bind: expected boolean");
         // }
 
         // Dates/times as ISO-8601 text; server casts to DATE/TIME/TIMESTAMP/TIMESTAMPTZ
         // if (type == PropType::Date || type == PropType::Time || type == PropType::Dt_Time || type == PropType::Tm_Stamp) {
-        //     if (!value.IsString()) throw std::runtime_error("bind: expected ISO-8601 string for date/time");
+        //     if (!value.IsString()) THROW("bind: expected ISO-8601 string for date/time");
         //     set_text(value.GetString());
         //     return;
         // }
@@ -106,7 +106,7 @@ public:
 
         // BYTEA as hex text (“\x...”) so we can keep text format
         // if (type == PropType::Bin) {
-        //     if (!value.IsString()) throw std::runtime_error("bind: expected binary as yEnc string");
+        //     if (!value.IsString()) THROW("bind: expected binary as yEnc string");
         //     // const std::string& raw = value.get_ref<const std::string&>();
         //     set_text(idx, value.GetString());
         //     return;
@@ -127,13 +127,13 @@ public:
             (nParams ? formats_.data() : nullptr),     // all text format
             0                                          // text results
         );
-        if (!res) throw std::runtime_error("Postgres exec failed: no result");
+        if (!res) THROW("Postgres exec failed: no result");
 
         auto st = PQresultStatus(res);
         if (st != PGRES_COMMAND_OK && st != PGRES_TUPLES_OK) {
             std::string err = PQerrorMessage(conn_);
             PQclear(res);
-            throw std::runtime_error("Postgres exec failed: " + err);
+            THROW("Postgres exec failed: " + err);
         }
 
         int rows = 0;
@@ -169,7 +169,7 @@ protected:
     }
 private:
     void ensure_slot_(int idx) {
-        if (idx < 1) throw std::runtime_error("bind: index must be >= 1");
+        if (idx < 1) THROW("bind: index must be >= 1");
         if (static_cast<size_t>(idx) > params_.size()) {
             params_.resize(idx, nullptr);
             lengths_.resize(idx, 0);
@@ -199,7 +199,7 @@ public:
         if (!conn_ || PQstatus(conn_) != CONNECTION_OK) {
             std::string err = conn_ ? PQerrorMessage(conn_) : "no connection";
             disconnect();
-            throw std::runtime_error("Postgres connect failed: " + err);
+            THROW("Postgres connect failed: " + err);
         }
     }
 
@@ -237,7 +237,7 @@ public:
     }
 
     std::unique_ptr<SQLStatement> prepare(const std::string& sql, int numParams=-1) override {
-        if (!conn_) throw std::runtime_error("prepare: not connected");
+        if (!conn_) THROW("prepare: not connected");
         return std::make_unique<PgStatement>(conn_, sql, stmtName());
     }
 
@@ -255,26 +255,26 @@ public:
 
 private:
     bool execSQL(const char* sql) {
-        if (!conn_) throw std::runtime_error("exec_simple_: not connected");
+        if (!conn_) THROW("exec_simple_: not connected");
         PGresult* res = PQexec(conn_, sql);
-        if (!res) throw std::runtime_error(std::string("Postgres error executing: ") + sql);
+        if (!res) THROW(std::string("Postgres error executing: ") + sql);
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
             std::string err = PQerrorMessage(conn_);
             PQclear(res);
-            throw std::runtime_error("Postgres error: " + err);
+            THROW("Postgres error: " + err);
         }
         PQclear(res);
         return true;
     }
 
     bool select(const char* sql) {
-        if (!conn_) throw std::runtime_error("exec_simple_: not connected");
+        if (!conn_) THROW("exec_simple_: not connected");
         PGresult* res = PQexec(conn_, sql);
-        if (!res) throw std::runtime_error(std::string("Postgres error executing: ") + sql);
+        if (!res) THROW(std::string("Postgres error executing: ") + sql);
         if (PQresultStatus(res) != PGRES_TUPLES_OK) {
             std::string err = PQerrorMessage(conn_);
             PQclear(res);
-            throw std::runtime_error("Postgres error: " + err);
+            THROW("Postgres error: " + err);
         }
         PQclear(res);
         return true;

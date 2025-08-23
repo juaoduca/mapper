@@ -1,6 +1,6 @@
 #include <iostream>
 #include "ddl_visitor.hpp"
-#include "schemamanager.hpp"
+#include "schemaupdate.hpp"
 #include <fstream>
 
 bool load_schema_from_file(const std::string &path, OrmSchema &schema)
@@ -38,7 +38,7 @@ int main()
     // new_schema.accept(dumper_new);
 
     std::cout << "\n[*] Migration Plan (DDL diff):" << std::endl;
-    SchemaManager mgr(old_schema, new_schema);
+    SchemaUpdate mgr(old_schema, new_schema);
     auto ddls = mgr.plan_migration("postgres");
     for (const auto &sql : ddls)
     {

@@ -10,6 +10,7 @@
 #include "snowflake.hpp"
 #include "sqlconnection.hpp"
 #include "ulid.hpp"
+#include "lib.hpp"
 
 using OrmSchemaMap = std::map<std::string, std::shared_ptr<OrmSchema>>;
 
@@ -127,14 +128,14 @@ public:
         auto& lease = ac.lease; // keep lease alive for whole TX
         SQLConnection& conn = lease.conn();
 
-        if (!conn.begin()) throw std::runtime_error("begin() failed");
+        if (!conn.begin()) THROW("begin() failed");
         try {
             using R = std::invoke_result_t<F, SQLConnection&>;
             R result = std::forward<F>(fn)(conn);
 
             if (!conn.commit()) {
                 conn.rollback();
-                throw std::runtime_error("commit() failed - transaction rolled back");
+                THROW("commit() failed - transaction rolled back");
             }
             return std::optional<R> { std::move(result) };
         } catch (...) {
@@ -258,5 +259,5 @@ private:
     std::unique_ptr<DDLVisitor> ddlVisitor_;
     std::unique_ptr<DMLVisitor> dmlVisitor_;
     // std::unique_ptr<QRYVisitor> qryVisitor_;
-    void create_id(OrmProp& prop, jdoc& doc, std::string key);
+    void create_id(const std::shared_ptr<OrmProp> idprop, jdoc& doc, std::string key);
 };

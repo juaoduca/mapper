@@ -40,7 +40,7 @@ public:
 
         switch (type) {
             case PropType::String: { if(value.IsString()) {set_text(idx, value.GetString()); return;}
-                throw er("bind: expected string"); return;
+                THROW("bind: expected string"); return;
             }break;
             case PropType::Integer:
             case PropType::Number : {
@@ -50,29 +50,29 @@ public:
                 if (value.IsUint64()) {sqlite3_bind_int64 (stmt_, idx, value.GetUint64()); return; }
                 if (value.IsFloat ()) {sqlite3_bind_double(stmt_, idx, value.GetDouble()); return; }
                 if (value.IsDouble()) {sqlite3_bind_double(stmt_, idx, value.GetDouble()); return; }
-                throw er("bind: expected integer or number");
+                THROW("bind: expected integer or number");
             }; break;
             case PropType::Bool: {
                 if (value.IsBool()){set_bool(idx, value.GetBool() ); return;}
                 if (value.IsInt ()){set_bool(idx, value.GetInt() != 0);return;}
-                throw er("bind: expected boolean");
+                THROW("bind: expected boolean");
             }; break;
             case PropType::Date:
             case PropType::Time:
             case PropType::Dt_Time:
             case PropType::Tm_Stamp: {
                 if (!value.IsString()) {str v =value.GetString(); set_datetime(idx, v); return;}
-                throw er("bind: expected ISO-8601 string for date/time");
+                THROW("bind: expected ISO-8601 string for date/time");
             };break;
             case PropType::Json: {
                 if (value.IsObject()) {set_text(idx, jhlp::dump(value)); return;}
                 if (value.IsArray() ) {set_text(idx, jhlp::dump(value)); return;}
                 if (value.IsString()) {set_text(idx, value.GetString()); return;}
-                throw er("bind: expected JSON object JSON array or string");
+                THROW("bind: expected JSON object JSON array or string");
             }break;
             case PropType::Bin: {
                 if (value.IsString()) {set_text(idx, value.GetString()); return;}
-                throw er("bind: expected binary as yEnc string");
+                THROW("bind: expected binary as yEnc string");
             }
         }
     }
@@ -80,7 +80,7 @@ public:
     int exec() override {
         int rc = sqlite3_step(stmt_);
         if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
-            throw std::runtime_error("SQLite exec failed");
+            THROW("SQLite exec failed");
         }
         return sqlite3_changes(sqlite3_db_handle(stmt_));
     }
@@ -102,7 +102,7 @@ public:
     void connect(const std::string& dsn) override {
         disconnect();
         if (sqlite3_open(dsn.c_str(), &db_) != SQLITE_OK) {
-            throw std::runtime_error("Failed to open SQLite DB: " + dsn);
+            THROW("Failed to open SQLite DB: " + dsn);
         }
     }
 
@@ -145,7 +145,7 @@ public:
         // int nBytes = sql.size()+1; // (the number of chars where 1 char = 1 byte) + 1 null_terminator
         //param numParams ignored
         if (sqlite3_prepare_v2(db_, sql.c_str(), sql.size()+1, &stmt, nullptr) != SQLITE_OK) {
-            throw std::runtime_error("SQLite prepare failed: " + sql);
+            THROW("SQLite prepare failed: " + sql);
         }
         return std::make_unique<SQLiteStatement>(stmt);
     }
@@ -161,7 +161,7 @@ private:
         if (sqlite3_exec(db_, sql, nullptr, nullptr, &errmsg) != SQLITE_OK) {
             std::string err = errmsg ? errmsg : "unknown";
             sqlite3_free(errmsg);
-            throw std::runtime_error("SQLite error: " + err);
+            THROW("SQLite error: " + err);
         }
         return true;
     }
