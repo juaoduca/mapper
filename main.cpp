@@ -1,53 +1,65 @@
 #include <iostream>
-#include "ddl_visitor.hpp"
-#include "schemaupdate.hpp"
-#include <fstream>
+#include "storage.hpp"
+#include "bootstrap.hpp"
 
-bool load_schema_from_file(const std::string &path, OrmSchema &schema)
-{
-    std::ifstream f(path);
-    if (!f)
-        return false;
-    std::string j;
-    f >> j;
-    json::Document doc;
-    jhlp::parse_str(j, doc);
-    return OrmSchema::from_json(doc, schema);
-}
+// load tenants from DB
+// we need a LandLord to control the tenants
+// it act like a master tenant with its DB sync with an upper server
 
-int main()
-{
-    OrmSchema old_schema, new_schema;
-    if (!load_schema_from_file("../data/example-schema-old.json", old_schema))
-    {
-        std::cerr << "Failed to load old schema." << std::endl;
-        return 1;
-    }
-    if (!load_schema_from_file("../data/example-schema-new.json", new_schema))
-    {
-        std::cerr << "Failed to load new schema." << std::endl;
-        return 1;
-    }
+class Tenant {
+    public:
+        Tenant(const std::string &dbConnStr, Dialect dialect) {
+            storage_ = std::make_shared<Storage>(dbConnStr, dialect);
+        }
+        std::string TenantName;
+    private:
+        std::shared_ptr<Storage> storage_ = nullptr;
+};
 
-    std::cout << "[*] Old Schema:" << std::endl;
-    // DDLVisitor dumper_old;
-    // old_schema.accept(dumper_old);
+class Lessor: public Tenant {
+    public:
+        Lessor(const std::string &dbConnStr, Dialect dialect)
+        : Tenant(dbConnStr, dialect) { // this initi is like a super() call
+        };
 
-    std::cout << "\n[*] New Schema:" << std::endl;
-    // DDLVisitor dumper_new;
-    // new_schema.accept(dumper_new);
+        void loadTenants() {
 
-    std::cout << "\n[*] Migration Plan (DDL diff):" << std::endl;
-    SchemaUpdate mgr(old_schema, new_schema);
-    auto ddls = mgr.plan_migration("postgres");
-    for (const auto &sql : ddls)
-    {
-        std::cout << sql << std::endl;
-    }
+            // if (storage_->select("select * from tenant", {})) {
 
-    std::cout << "\n[*] PostgreSQL DDL (for new schema):" << std::endl;
-    PgDDLVisitor pg;
-    // new_schema.accept(pg);
+            // }
+        }
+};
+
+int main() {
+    Storage store("./database.db", Dialect::SQLite);
+    store.init_catalog();
+    // must exist a item in schemacatalog for schema_catalog and schema_versions
+    // must exist a schema_catalog table and a schema_version table
+    // must exist a record in both tables for schema_catalog
+    // must exist a record in both tables for schema_versions
+
+    std::string jsch = SCHEMA_USER;
+    if (store.addSchema(jsch)) {
+        //must exist a record in schema_catalog for schema_user
+        //and a record in schema_versions for schema_user
+        //
+    };
 
     return 0;
 }
+
+
+// int main()
+// {
+//     Lessor lessor("./lessor.db", Dialect::SQLite); // the owner of the service
+//     std::unordered_map<std::string, std::shared_ptr<Tenant>> tenants; // they pay to use the service
+
+//     lessor.loadTenants();
+
+//     while (true) {
+//         //
+//     };
+
+
+//     return 0;
+// }

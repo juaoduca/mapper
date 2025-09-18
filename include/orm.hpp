@@ -1,4 +1,6 @@
-#pragma once
+#ifndef ORM_HPP_
+#define ORM_HPP_
+// #pragma once
 #include <string>
 #include <vector>
 #include <optional>
@@ -6,51 +8,38 @@
 #include <string_view>
 #include <stdexcept>
 #include "jsonhlp.hpp"
-#include "lib.hpp"
-
-/****************** LIERAL CONSTS */
-#define VAL_NULL        "NULL"
-#define PROP_NAME       "name"
-#define PROP_TITLE      "title"
-#define PROP_PROPERTIES "properties"
-#define PROP_INDEXES    "indexes"
-#define PROP_DEFAULT    "default"
-#define PROP_REQUIRED   "required"
-
-#define PROP_INDEX      "index"
-#define PROP_INDEX_NAME "indexName"
-#define PROP_INDEX_TYPE "indexType"
-#define PROP_FIELDS     "fields"
-#define PROP_UNIQUE     "unique"
-
-#define PROP_ENCODING   "encoding"
-#define PROP_ID_PROP    "idprop"
-#define PROP_ID_KIND    "idkind"
-
 
 /**********  helpers public functions - lib  ***********/
 enum class IdKind { UUIDv7, HighLow, Snowflake, DBSerial, TBSerial };
-enum class DefaultKind { None, String, Boolean, Number, Raw };
-enum class PropType { String, Integer, Number, Bool, Date, Time, Dt_Time, Tm_Stamp, Bin, Json};
+enum class DefaultKind { None, String, Boolean, Number, Raw, Null };
+enum class PropType { String, Integer, Number, Bool, Date, Time, Dt_Time, Tm_Stamp, Bin, Json, Object};
 enum class Dialect {SQLite, Postgres};
 
 class OrmSchema; // fw decl
+class OrmProp; // fw decl
+
+/** callback to OrmSchema::from_json() function to find an ref_schema */
+// using InsertCatalogFn = std::function<bool (const OrmSchema &new_Schema)>;
+using GetRefSchemaFn = std::function<std::shared_ptr<OrmSchema> (const std::string &schema_name)>;
+
 
 struct OrmProp {
-    std::string name; // prop/field name
-    std::string schema_name; // schema name the prop belongs
-    PropType    type; // prop Dataype / field Datatype
-    bool        is_id = false; // if the prop/field is an ID field/prop
-    IdKind      id_kind = IdKind::UUIDv7; // define the generation of the ID
-    bool        required = false; //must be filled or not
-    std::string encoding; // encoding type for binary data (yEnc, Base64 etc)
-    std::string default_value; // if have a default, default value
-    DefaultKind default_kind = DefaultKind::None; // if have a default, the default Datatype
+    std::string              name                            ; // prop/field name
+    std::weak_ptr<OrmSchema> parent                          ; // schema name the prop belongs
+    bool                     is_id        = false            ; // if the prop/field is an ID field/prop
+    IdKind                   id_kind      = IdKind::UUIDv7   ; // define the generation of the ID
+    PropType                 type                            ; // prop Dataype / field Datatype
+    std::string              encoding                        ; // encoding type for binary data (yEnc, Base64 etc)
+    std::weak_ptr<OrmSchema> ref_Schema                      ; // foreink schema
+    std::weak_ptr<OrmProp>   ref_Field                       ; // foreing prop
+    bool                     required     = false            ; //must be filled or not
+    DefaultKind              default_kind = DefaultKind::None; // if have a default, the default Datatype
+    std::string              default_value                   ; // if have a default, default value
     // field index props
-    bool        is_indexed = false; // the resulted table field will be indexed
-    std::string index_type; // index asc or desc order
-    bool        is_unique = false; // index unique
-    std::string index_name; // field index name
+    std::string               index_name                     ; // field index name
+    std::string               index_type                     ; // index asc or desc order
+    bool                      is_indexed = false             ; // the resulted table field will be indexed
+    bool                      is_unique  = false             ; // index unique
 };
 
 struct OrmIndex {
@@ -63,51 +52,27 @@ struct OrmIndex {
 class DDLVisitor; // forward declaration
 
 class OrmSchema {
+private:
+    mutable std::shared_ptr<OrmProp> id_prop = nullptr;
 public:
-    int64_t id = 0; // must load the id if exists
-    std::string name;
-    OrmSchema* parent; // pointer to parent
-    int version;
-    bool applied;
-    std::string json;
-    //unordered_map so the fields keep the order they appear in JSONSchema string
-    //so the DDLVisitor will create the tables fields in this same order
-    // the search is made by a hash seach
-    std::unordered_map<std::string, OrmProp> fields;
+    int64_t            id = 0; // must load the id if exists
+    std::string        name; // unique
+    int                version = -1; // changes control
+    bool               applied = false; // avoid useless re-processing
+    mutable DateTime   applied_at; // value as a chrono time_point
+    std::string        json = "{}"; // JSONchema string with data structure
+    std::weak_ptr<const OrmSchema> parent; // pointer to parent
+    mutable std::vector<OrmSchema> ladder; // the parent chain to the root parent
+    // mutable std::shared_ptr<CatalogItem> catalog_item;
+    std::unordered_map<std::string, std::shared_ptr<OrmProp>> fields; // keep insertion order - reflected on DB Tables
     std::vector<OrmIndex> indexes;
-
-    // void accept(class DDLVisitor& visitor) const;
     const std::shared_ptr<OrmProp> idprop() const ;
-    static bool from_json(jdoc& doc, OrmSchema& schema);
+    static bool from_json(std::string JSON, OrmSchema& schema, GetRefSchemaFn getRefSchema = nullptr);
+    static bool from_json(jdoc& doc, OrmSchema& schema, GetRefSchemaFn getRefSchema = nullptr);
 };
 
-PropType proptype(std::string type);
-// {
-//     if (type == "string"   ) return PropType::String   ;
-//     if (type == "integer"  ) return PropType::Integer  ;
-//     if (type == "number"   ) return PropType::Number   ;
-//     if (type == "boolean"  ) return PropType::Bool     ;
-//     if (type == "date"     ) return PropType::Date     ;
-//     if (type == "time"     ) return PropType::Time     ;
-//     if (type == "datetime" ) return PropType::Dt_Time  ;
-//     if (type == "timestamp") return PropType::Tm_Stamp ;
-//     if (type == "binary"   ) return PropType::Bin      ;
-//     if (type == "json"     ) return PropType::Json     ;
-//     THROW("Invalid type name: "+type);
-// }
+PropType proptype(const std::string &type); // impl on orm.cpp
 
-std::string proptype(PropType type);
-// {
-//     if (type == PropType::String  ) return  "string"   ;
-//     if (type == PropType::Integer ) return  "integer"  ;
-//     if (type == PropType::Number  ) return  "number"   ;
-//     if (type == PropType::Bool    ) return  "boolean"  ;
-//     if (type == PropType::Date    ) return  "date"     ;
-//     if (type == PropType::Time    ) return  "time"     ;
-//     if (type == PropType::Dt_Time ) return  "datetime" ;
-//     if (type == PropType::Tm_Stamp) return  "timestamp";
-//     if (type == PropType::Bin     ) return  "binary"   ;
-//     if (type == PropType::Json    ) return  "json"     ;
-//     THROW("Invalid proptype name: "+int(type));
-// }
+std::string proptype(PropType type); // impl on orm.cpp
 
+#endif

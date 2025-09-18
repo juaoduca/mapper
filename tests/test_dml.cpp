@@ -20,9 +20,9 @@ static OrmSchema make_user_schema() {
     OrmProp name; name.name="name"; name.type=PropType::String; name.required=true;
     OrmProp age;  age.name="age";  age.type=PropType::Integer;
 
-    s.fields[id.name] = id;
-    s.fields[name.name] = name;
-    s.fields[age.name] = age;
+    s.fields[id.name]   = std::make_shared<OrmProp>(id);
+    s.fields[name.name] = std::make_shared<OrmProp>(name);
+    s.fields[age.name]  = std::make_shared<OrmProp>(age);
     return s;
 }
 
@@ -42,16 +42,16 @@ static OrmSchema make_types_schema() {
     OrmProp num ; num .name="num" ; num .type=PropType::Number  ;
     OrmProp str ; str .name="str" ; str .type=PropType::String  ;
 
-    s.fields[id.name]=id;
-    s.fields[d.name]=d;
-    s.fields[t.name]=t;
-    s.fields[dt.name]=dt;
-    s.fields[ts.name]=ts;
-    s.fields[j.name]=j;
-    s.fields[b.name]=b;
-    s.fields[flag.name]=flag;
-    s.fields[num.name]=num;
-    s.fields[str.name]=str;
+    s.fields[id  .name] =  std::make_shared<OrmProp>(id  );
+    s.fields[d   .name] =  std::make_shared<OrmProp>(d   );
+    s.fields[t   .name] =  std::make_shared<OrmProp>(t   );
+    s.fields[dt  .name] =  std::make_shared<OrmProp>(dt  );
+    s.fields[ts  .name] =  std::make_shared<OrmProp>(ts  );
+    s.fields[j   .name] =  std::make_shared<OrmProp>(j   );
+    s.fields[b   .name] =  std::make_shared<OrmProp>(b   );
+    s.fields[flag.name] =  std::make_shared<OrmProp>(flag);
+    s.fields[num .name] =  std::make_shared<OrmProp>(num );
+    s.fields[str .name] =  std::make_shared<OrmProp>(str );
     return s;
 }
 
@@ -70,8 +70,7 @@ static Storage make_storage_for(Dialect d) {
 // INSERT with PK absent → JSON order preserved, PK appended LAST (and bound last)
 TEST_CASE("INSERT: PK absent → PK appended LAST; JSON order preserved (SQLite)", "[dml][insert][pk-absent][sqlite]") {
     OrmSchema schema = make_user_schema();
-    jdoc doc;
-    jhlp::parse_str(R"({"name":"Alice","age":30})", doc);
+    jdoc doc = jhlp::parse_str(R"({"name":"Alice","age":30})");
 
     Storage st = make_storage_for(Dialect::SQLite);
     FakeSQLConnection conn; //create a local instance - free when func returns
@@ -104,8 +103,7 @@ TEST_CASE("INSERT: PK absent → PK appended LAST; JSON order preserved (SQLite)
 TEST_CASE("INSERT: PK absent → PK appended LAST; JSON order preserved (Postgres)", "[dml][insert][pk-absent][pg]") {
     OrmSchema schema = make_user_schema();
     auto j = R"({"name": "Alice", "age": 30 })";
-    jdoc doc;
-    jhlp::parse_str(j, doc);
+    jdoc doc = jhlp::parse_str(j);
 
     Storage st = make_storage_for(Dialect::SQLite);
     FakeSQLConnection conn;
@@ -137,8 +135,8 @@ TEST_CASE("INSERT: PK absent → PK appended LAST; JSON order preserved (Postgre
 // INSERT with PK present but invalid (0) → PK replaced in-place (order unchanged)
 TEST_CASE("INSERT: PK present but invalid → value replaced; order unchanged (SQLite)", "[dml][insert][pk-invalid][sqlite]") {
     OrmSchema schema = make_user_schema();
-    jdoc doc;
-    jhlp::parse_str(R"({"id": 0, "name": "Bob"})", doc);
+
+    jdoc doc = jhlp::parse_str(R"({"id": 0, "name": "Bob"})");
 
     Storage st = make_storage_for(Dialect::SQLite);
     FakeSQLConnection conn;
@@ -154,20 +152,22 @@ TEST_CASE("INSERT: PK present but invalid → value replaced; order unchanged (S
     REQUIRE(conn.last.bind_calls == 2);
 
     REQUIRE(conn.last.binds[0].idx == 1);
-    REQUIRE(conn.last.binds[0].valuecast == "Bob");
-    REQUIRE(conn.last.binds[0].valuetype == rapidjson::Type::kStringType);
-    REQUIRE(conn.last.binds[0].type == PropType::String); // age
+    REQUIRE(conn.last.binds[0].valuetype == rapidjson::Type::kNumberType);
+    REQUIRE(conn.last.binds[0].type == PropType::Integer); // PK
 
     REQUIRE(conn.last.binds[1].idx == 2);
-    REQUIRE(conn.last.binds[1].valuetype == rapidjson::Type::kNumberType);
-    REQUIRE(conn.last.binds[1].type == PropType::Integer); // PK
+    REQUIRE(conn.last.binds[1].valuecast == "Bob");
+    REQUIRE(conn.last.binds[1].valuetype == rapidjson::Type::kStringType);
+    REQUIRE(conn.last.binds[1].type == PropType::String); // age
+
+
 }
 
 //UPSERT when PK present and valid → follow JSON order; SQL has ON CONFLICT
 TEST_CASE("UPSERT: PK present and valid → JSON order; ON CONFLICT present (SQLite)", "[dml][upsert][sqlite]") {
     OrmSchema schema = make_user_schema();
-    jdoc doc;
-    jhlp::parse_str(R"({"id": 42, "name":"Carol", "age": 25})", doc);
+
+    jdoc doc = jhlp::parse_str(R"({"id": 42, "name":"Carol", "age": 25})");
 
     Storage st = make_storage_for(Dialect::SQLite);
     FakeSQLConnection conn;
@@ -215,9 +215,8 @@ TEST_CASE("Bind types: date/time/datetime/timestamp/Json/bool/num/str/bin (SQLit
         "flag": true                    ,
         "num" : 3.14159                 ,
         "str" : "hello"                })";
-    jdoc doc;
-    jhlp::parse_str(j, doc);
 
+    jdoc doc = jhlp::parse_str(j);
     Storage st = make_storage_for(Dialect::SQLite);
     FakeSQLConnection conn;
 

@@ -1,6 +1,6 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "$id": "https://raw.githubusercontent.com/juaoduca/mapper/refs/heads/main/orm-meta-schema.json",
+    "$id": "https://raw.githubusercontent.com/juaoduca/public/refs/heads/main/orm-meta-schema.json",
     "title": "Mapper ORM – JSON Schema Extensions",
     "description": "Adds ORM-specific keywords usable alongside normal JSON Schema. Does not redefine base JSON Schema.",
     "type": "object",
@@ -129,11 +129,11 @@
         "Schema": {
             "type": "object",
             "properties": {
-                "schema": {
+                "ref_schema": {
                     "type": "string",
                     "description": "Parent or Referenced schema/table name."
                 },
-                "prop": {
+                "ref_prop": {
                     "type": "string",
                     "description": "Target exported/referenced prop/field name."
                 },

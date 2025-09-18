@@ -18,6 +18,8 @@ std::string DDLVisitor::sql_default(const OrmProp& f) {
             return " DEFAULT " + f.default_value;
         case DK::Raw:
             return " DEFAULT " + f.default_value;
+        case DK::Null:
+            return " DEFAULT NULL";
     }
     return "";
 }
@@ -35,23 +37,36 @@ std::string PgDDLVisitor::sql_type(const OrmProp& f) {
     if (f.type == PropType::Dt_Time  ) return "TIMESTAMP"               ;
     if (f.type == PropType::Tm_Stamp ) return "TIMESTAMP WITH TIME ZONE";
     if (f.type == PropType::Bin      ) return "BYTEA"                   ;
+    if (f.type == PropType::Object   ) {
+        OrmProp *rf = f.ref_Field.lock().get();
+        if (rf != nullptr) {
+            if (rf->id_kind == IdKind::UUIDv7) {
+                return "TEXT";
+            } else {
+                return "BIGINT";
+            }
+        } else {
+            return "BIGINT";
+        }
+    }
     return "TEXT";
 }
 
 std::string PgDDLVisitor::visit(const OrmSchema& schema) {
+    auto Q = [&](const std::string& id) -> std::string { return quote(id); };
     std::ostringstream ddl;
-    ddl << "CREATE TABLE IF NOT EXISTS " << schema.name << "(\n";
+    ddl << "CREATE TABLE IF NOT EXISTS " << Q(schema.name) << "(\n";
 
     std::vector<std::string> pk_fields;
     size_t i = 0, n = schema.fields.size();
 
     for (const auto& kv : schema.fields) {
-        const OrmProp& f = kv.second;
-        ddl << " " << f.name << " " << sql_type(f);
+        const OrmProp& f = *kv.second;
+        ddl << " " << Q(f.name) << " " << sql_type(f);
         if (f.required) ddl << " NOT NULL";
         if (f.is_unique) ddl << " UNIQUE";
         ddl << sql_default(f);
-        if (f.is_id) pk_fields.push_back(f.name);
+        if (f.is_id) pk_fields.push_back(Q(f.name));
         if (++i < n) ddl << ",\n";
         else ddl << "\n";
     }
@@ -69,13 +84,13 @@ std::string PgDDLVisitor::visit(const OrmSchema& schema) {
 
     // Per-field indexes
     for (const auto& kv : schema.fields) {
-        const OrmProp& f = kv.second;
+        const OrmProp& f = *kv.second;
         if (f.is_indexed && !f.is_id) {
             ddl << "\nCREATE ";
             if (f.is_unique) ddl << "UNIQUE ";
             ddl << "INDEX ";
-            if (!f.index_name.empty()) ddl << f.index_name << " ";
-            ddl << "ON " << schema.name << " (" << f.name << ");";
+            if (!f.index_name.empty()) ddl << Q(f.index_name) << " ";
+            ddl << "ON " << Q(schema.name) << " (" << Q(f.name) << ");";
         }
     }
 
@@ -84,10 +99,10 @@ std::string PgDDLVisitor::visit(const OrmSchema& schema) {
         ddl << "\nCREATE ";
         if (idx.unique) ddl << "UNIQUE ";
         ddl << "INDEX ";
-        if (!idx.index_name.empty()) ddl << idx.index_name << " ";
-        ddl << "ON " << schema.name << " (";
+        if (!idx.index_name.empty()) ddl << Q(idx.index_name) << " ";
+        ddl << "ON " << Q(schema.name) << " (";
         for (size_t j = 0; j < idx.fields.size(); ++j) {
-            ddl << idx.fields[j];
+            ddl << Q(idx.fields[j]);
             if (j + 1 < idx.fields.size()) ddl << ", ";
         }
         ddl << ");";
@@ -101,33 +116,46 @@ std::string PgDDLVisitor::visit(const OrmSchema& schema) {
 /* ---------- SQLite ---------- */
 
 std::string SqliteDDLVisitor::sql_type(const OrmProp& f) {
-    if (f.type == PropType::String    ) return "TEXT";
-    if (f.type == PropType::Integer    ) return "INTEGER";
-    if (f.type == PropType::Number    ) return "REAL";
-    if (f.type == PropType::Bool   ) return "BOOLEAN";
-    if (f.type == PropType::Json   ) return "TEXT";
-    if (f.type == PropType::Date   ) return "DATE";
-    if (f.type == PropType::Time   ) return "TIME";
+    if (f.type == PropType::String   ) return "TEXT"     ;
+    if (f.type == PropType::Integer  ) return "INTEGER"  ;
+    if (f.type == PropType::Number   ) return "REAL"     ;
+    if (f.type == PropType::Bool     ) return "BOOLEAN"  ;
+    if (f.type == PropType::Json     ) return "TEXT"     ;
+    if (f.type == PropType::Date     ) return "DATE"     ;
+    if (f.type == PropType::Time     ) return "TIME"     ;
     if (f.type == PropType::Dt_Time  ) return "TIMESTAMP";
-    if (f.type == PropType::Tm_Stamp ) return "TEXT";
-    if (f.type == PropType::Bin    ) return "BLOB";
+    if (f.type == PropType::Tm_Stamp ) return "TEXT"     ;
+    if (f.type == PropType::Bin      ) return "BLOB"     ;
+    if (f.type == PropType::Object   ) {
+        OrmProp *rf = f.ref_Field.lock().get();
+        if (rf != nullptr) {
+            if (rf->id_kind == IdKind::UUIDv7) {
+                return "TEXT";
+            } else {
+                return "INTEGER";
+            }
+        } else {
+            return "INTEGER";
+        }
+    }
     return "TEXT";
 }
 
 std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
+    auto Q = [&](const std::string& id) -> std::string { return quote(id); };
     std::ostringstream ddl;
-    ddl << "CREATE TABLE IF NOT EXISTS " << schema.name << "(\n";
+    ddl << "CREATE TABLE IF NOT EXISTS " << Q(schema.name) << "(\n";
 
     std::vector<std::string> pk_fields;
     size_t i = 0, n = schema.fields.size();
 
     for (const auto& kv : schema.fields) {
-        const OrmProp& f = kv.second;
-        ddl << " " << f.name << " " << sql_type(f);
+        const OrmProp& f = *kv.second;
+        ddl << " " << Q(f.name) << " " << sql_type(f);
         if (f.required) ddl << " NOT NULL";
         if (f.is_unique) ddl << " UNIQUE";
         ddl << sql_default(f);
-        if (f.is_id) pk_fields.push_back(f.name);
+        if (f.is_id) pk_fields.push_back(Q(f.name));
         if (++i < n) ddl << ",\n";
         else ddl << "\n";
     }
@@ -145,13 +173,17 @@ std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
 
     // Per-field indexes
     for (const auto& kv : schema.fields) {
-        const OrmProp& f = kv.second;
+        const OrmProp& f = *kv.second;
         if (f.is_indexed && !f.is_id) {
             ddl << "\nCREATE ";
             if (f.is_unique) ddl << "UNIQUE ";
-            ddl << "INDEX ";
-            if (!f.index_name.empty()) ddl << f.index_name << " ";
-            ddl << "ON " << schema.name << " (" << f.name << ");";
+            ddl << "INDEX IF NOT EXISTS ";
+            if (!f.index_name.empty()) {
+                ddl << f.index_name << " " ;
+            } else {
+                ddl << "idx_" << f.name << " " ;
+            }
+            ddl << "ON " << Q(schema.name) << " (" << Q(f.name) << ");";
         }
     }
 
@@ -159,9 +191,9 @@ std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
     for (const auto& idx : schema.indexes) {
         ddl << "\nCREATE ";
         if (idx.unique) ddl << "UNIQUE ";
-        ddl << "INDEX ";
+        ddl << "INDEX IF NOT EXISTS ";
         if (!idx.index_name.empty()) ddl << idx.index_name << " ";
-        ddl << "ON " << schema.name << " (";
+        ddl << "ON " << Q(schema.name) << " (";
         for (size_t j = 0; j < idx.fields.size(); ++j) {
             ddl << idx.fields[j];
             if (j + 1 < idx.fields.size()) ddl << ", ";
@@ -170,7 +202,7 @@ std::string SqliteDDLVisitor::visit(const OrmSchema& schema) {
     }
 
     ddl << std::endl;
-    std::cout << "SqliteDDLVisitor::visit(): " << ddl.str();
+    std::cout << "SqliteDDLVisitor::visit(): \n" << ddl.str();
     return ddl.str();
 }
 

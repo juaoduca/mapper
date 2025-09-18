@@ -1,28 +1,17 @@
 cmake_minimum_required(VERSION 3.12)
 project(ecm LANGUAGES CXX)
 
+# This will place all executables (main and tests) into the /build folder
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/build")
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-include_directories(include )
-# add_subdirectory(rapidjson)
+file(GLOB_RECURSE INCLUDE_SUBDIRS "${CMAKE_CURRENT_SOURCE_DIR}/include/*/")
 
-# # ---- nlohmann_json fallback (vendored single-header) ----
-# set(_NLOHMANN_MIN_VER 3.2.0)
-# find_package(nlohmann_json ${_NLOHMANN_MIN_VER} QUIET)
-# if(NOT nlohmann_json_FOUND)
-#     message(STATUS "nlohmann_json not found via find_package; trying vendored header.")
-#     set(NLOHMANN_JSON_VENDORED_DIR "${CMAKE_SOURCE_DIR}/third_party")
-#     if(EXISTS "${NLOHMANN_JSON_VENDORED_DIR}/nlohmann/json.hpp")
-#         add_library(nlohmann_json INTERFACE)
-#         target_include_directories(nlohmann_json INTERFACE ${NLOHMANN_JSON_VENDORED_DIR})
-#         add_library(nlohmann_json::nlohmann_json ALIAS nlohmann_json)
-#         message(STATUS "Using vendored nlohmann_json header at ${NLOHMANN_JSON_VENDORED_DIR}")
-#     else()
-#         message(FATAL_ERROR "nlohmann_json not found. Provide third_party/nlohmann/json.hpp or install the package.")
-#     endif()
-# endif()
+include_directories(include include/query )
+
 
 # --- Detect PostgreSQL ---
 find_package(PostgreSQL)
@@ -66,7 +55,7 @@ target_link_libraries(orm PRIVATE orm_core fcgi)
 
 # ---- Unit tests ----
 enable_testing()
-file(GLOB TEST_SOURCES CONFIGURE_DEPENDS tests/test_*.cpp)
+file(GLOB TEST_SOURCES CONFIGURE_DEPENDS tests/test_*.cpp tests/query/test_*.h)
 
 foreach(test_src ${TEST_SOURCES})
     get_filename_component(test_name ${test_src} NAME_WE)

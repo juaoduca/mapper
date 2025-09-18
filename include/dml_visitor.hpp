@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include "orm.hpp"
 #include "lib.hpp"
+#include "jsonhlp.hpp"
 
 /**
  * DML generation using only fields present in the JSON payload.
@@ -21,11 +22,10 @@ class DMLVisitor {
 public:
     virtual ~DMLVisitor() = default;
 
-    virtual dml_pair insert (const OrmSchema& schema, const jval& value) const = 0;
-    virtual dml_pair upsert (OrmSchema& schema, const jval& value) const = 0;
-    virtual dml_pair update (OrmSchema& schema, const jval& value) const = 0;
-    virtual dml_pair remove (OrmSchema& schema, const jval& value) const = 0;
-
+    virtual DML_Result insert (const OrmSchema &schema, const jval &value, const std::string key="") const;
+    virtual dml_pair upsert (const OrmSchema &schema, const jval &value) const;
+    virtual dml_pair update (const OrmSchema &schema, const jval &value) const;
+    virtual dml_pair remove (const OrmSchema &schema, const jval &value) const;
 protected:
     // 1-based placeholder
     virtual std::string ph(size_t index1) const = 0;
@@ -33,20 +33,20 @@ protected:
 
 class SqliteDMLVisitor final : public DMLVisitor {
 public:
-    dml_pair insert (const OrmSchema& schema, const jval& value) const override;
-    dml_pair upsert (OrmSchema& schema, const jval& value) const override;
-    dml_pair update (OrmSchema& schema, const jval& value) const override;
-    dml_pair remove (OrmSchema& schema, const jval& value) const override;
+    // DML_Result insert (const OrmSchema &schema, const jval &value, const std::string key="") const override;
+    // dml_pair upsert (const OrmSchema &schema, const jval &value) const override;
+    // dml_pair update (const OrmSchema &schema, const jval &value) const override;
+    // dml_pair remove (const OrmSchema &schema, const jval &value) const override;
 private:
     std::string ph(size_t index1) const override; // ?1
 };
 
 class PgDMLVisitor final : public DMLVisitor {
 public:
-    dml_pair insert (const OrmSchema& schema, const jval& value) const override;
-    dml_pair upsert (OrmSchema& schema, const jval& value) const override;
-    dml_pair update (OrmSchema& schema, const jval& value) const override;
-    dml_pair remove (OrmSchema& schema, const jval& value) const override;
+    // DML_Result insert (const OrmSchema &schema, const jval &value, const std::string key="") const override;
+    // dml_pair upsert (const OrmSchema &schema, const jval &value) const override;
+    // dml_pair update (const OrmSchema &schema, const jval &value) const override;
+    // dml_pair remove (const OrmSchema &schema, const jval &value) const override;
 private:
     std::string ph(size_t index1) const override; // $1
 };

@@ -1,11 +1,10 @@
 // connection_postgres.cpp
+#include "sqlconnection.hpp"
 #include <format>
 #include <libpq-fe.h>
 #include <string>
 #include <vector>
 #include <cstdlib>
-#include <lib.hpp>
-#include "sqlconnection.hpp"
 
 /*=============================  PgStatement  =============================*/
 class PgStatement final : public SQLStatement {
@@ -19,43 +18,43 @@ public:
     void bind(int idx, const jval& value, const PropType& type) override {
         ensure_slot_(idx);
 
-        if (value.IsNull()) { set_null(idx); return; }
+        if (value.IsNull()) { bind_null(idx); return; }
 
         switch (type) {
             case PropType::String: {
-                if(value.IsString()) {str v= value.GetString(); set_text(idx, "'"+v+"'"); return;}
+                if(value.IsString()) {std::string v= value.GetString(); bind_text(idx, "'"+v+"'"); return;}
                 THROW("bind: expected string"); return;
             }break;
             case PropType::Integer:
             case PropType::Number : {
-                if (value.IsInt    ()) {int      v = value.GetInt    (); set_text(idx, std::to_string(v)); return; }
-                if (value.IsInt64  ()) {int64_t  v = value.GetInt64  (); set_text(idx, std::to_string(v)); return; }
-                if (value.IsUint   ()) {uint     v = value.GetUint   (); set_text(idx, std::to_string(v)); return; }
-                if (value.IsUint64 ()) {uint64_t v = value.GetUint64 (); set_text(idx, std::to_string(v)); return; }
-                if (value.IsFloat  ()) {float    v = value.GetDouble (); set_text(idx, std::to_string(v)); return; }
-                if (value.IsDouble ()) {double   v = value.GetDouble (); set_text(idx, std::to_string(v)); return; }
+                if (value.IsInt    ()) {int      v = value.GetInt    (); bind_text(idx, std::to_string(v)); return; }
+                if (value.IsInt64  ()) {int64_t  v = value.GetInt64  (); bind_text(idx, std::to_string(v)); return; }
+                if (value.IsUint   ()) {uint     v = value.GetUint   (); bind_text(idx, std::to_string(v)); return; }
+                if (value.IsUint64 ()) {uint64_t v = value.GetUint64 (); bind_text(idx, std::to_string(v)); return; }
+                if (value.IsFloat  ()) {float    v = value.GetDouble (); bind_text(idx, std::to_string(v)); return; }
+                if (value.IsDouble ()) {double   v = value.GetDouble (); bind_text(idx, std::to_string(v)); return; }
                 THROW("bind: expected integer or number");
             }; break;
             case PropType::Bool: {
-                if(value.IsBool()){set_bool(idx, value.GetBool() ); return;}
-                if (value.IsInt()){set_bool(idx, value.GetInt() == 1 ? true : false);return;} // 0=false 1 = true
+                if(value.IsBool()){bind_bool(idx, value.GetBool() ); return;}
+                if (value.IsInt()){bind_bool(idx, value.GetInt() == 1 ? true : false);return;} // 0=false 1 = true
                 THROW("bind: expected boolean");
             }; break;
             case PropType::Date:
             case PropType::Time:
             case PropType::Dt_Time:
             case PropType::Tm_Stamp: {
-                if (!value.IsString()) {set_datetime(idx, value.GetString()); return;}
+                if (!value.IsString()) {bind_datetime(idx, value.GetString()); return;}
                 THROW("bind: expected ISO-8601 string for date/time");
             };break;
             case PropType::Json: {
-                if (value.IsObject()) {set_text(idx, jhlp::dump(value)); return;}
-                if (value.IsArray() ) {set_text(idx, jhlp::dump(value)); return;}
-                if (value.IsString()) {set_text(idx, value.GetString()); return;}
+                if (value.IsObject()) {bind_text(idx, jhlp::asString(value)); return;}
+                if (value.IsArray() ) {bind_text(idx, jhlp::asString(value)); return;}
+                if (value.IsString()) {bind_text(idx, value.GetString()); return;}
                 THROW("bind: expected JSON object JSON array or string");
             }break;
             case PropType::Bin: {
-                if (value.IsString()) {set_encoded(idx, value.GetString()); return;}
+                if (value.IsString()) {bind_encoded(idx, value.GetString()); return;}
                 THROW("bind: expected binary as yEnc string");
             }
         }
@@ -64,27 +63,27 @@ public:
         // // 2) Match declared schema type (strict)
         // if (type == PropType::String) {
         //     if (!value.IsString()) THROW("bind: expected string");
-        //     set_text(value.GetString());
+        //     bind_text(value.GetString());
         //     return;
         // }
 
         // if (type == PropType::Integer || type == PropType::Number) {
-        //     if (value.IsInt    ()) {int      v = value.GetInt    (); set_text(std::to_string(v)); return; }
-        //     if (value.IsInt64  ()) {int64_t  v = value.GetInt64  (); set_text(std::to_string(v)); return; }
-        //     if (value.IsUint   ()) {uint     v = value.GetUint   (); set_text(std::to_string(v)); return; }
-        //     if (value.IsUint64 ()) {uint64_t v = value.GetUint64 (); set_text(std::to_string(v)); return; }
-        //     if (value.IsFloat  ()) {float    v = value.GetDouble (); set_text(std::to_string(v)); return; }
-        //     if (value.IsDouble ()) {double   v = value.GetDouble (); set_text(std::to_string(v)); return; }
+        //     if (value.IsInt    ()) {int      v = value.GetInt    (); bind_text(std::to_string(v)); return; }
+        //     if (value.IsInt64  ()) {int64_t  v = value.GetInt64  (); bind_text(std::to_string(v)); return; }
+        //     if (value.IsUint   ()) {uint     v = value.GetUint   (); bind_text(std::to_string(v)); return; }
+        //     if (value.IsUint64 ()) {uint64_t v = value.GetUint64 (); bind_text(std::to_string(v)); return; }
+        //     if (value.IsFloat  ()) {float    v = value.GetDouble (); bind_text(std::to_string(v)); return; }
+        //     if (value.IsDouble ()) {double   v = value.GetDouble (); bind_text(std::to_string(v)); return; }
         //     THROW("bind: expected integer or number");
         // }
 
         // if (type == PropType::Bool) {
         //     if (value.IsBool()) {
-        //         set_text(bool_to_text( value.GetBool() ));
+        //         bind_text(bool_to_text( value.GetBool() ));
         //         return;
         //     }
         //     if (value.IsInt()) {
-        //         set_text(bool_to_text(value.GetInt() != 0));
+        //         bind_text(bool_to_text(value.GetInt() != 0));
         //         return;
         //     }
         //     THROW("bind: expected boolean");
@@ -93,14 +92,14 @@ public:
         // Dates/times as ISO-8601 text; server casts to DATE/TIME/TIMESTAMP/TIMESTAMPTZ
         // if (type == PropType::Date || type == PropType::Time || type == PropType::Dt_Time || type == PropType::Tm_Stamp) {
         //     if (!value.IsString()) THROW("bind: expected ISO-8601 string for date/time");
-        //     set_text(value.GetString());
+        //     bind_text(value.GetString());
         //     return;
         // }
 
         // JSON as text (server parses into json)
         // if (type == PropType::Json) {
-        //     if (value.IsString()) set_text(value.GetString());
-        //     else set_text(value.GetString());
+        //     if (value.IsString()) bind_text(value.GetString());
+        //     else bind_text(value.GetString());
         //     return;
         // }
 
@@ -108,7 +107,7 @@ public:
         // if (type == PropType::Bin) {
         //     if (!value.IsString()) THROW("bind: expected binary as yEnc string");
         //     // const std::string& raw = value.get_ref<const std::string&>();
-        //     set_text(idx, value.GetString());
+        //     bind_text(idx, value.GetString());
         //     return;
         // }
 
@@ -152,13 +151,13 @@ public:
         return rows;
     }
 protected:
-    void set_null(int idx) override {
+    void bind_null(int idx) override {
         params_[idx-1]  = nullptr;  // SQL NULL
         lengths_[idx-1] = 0;
         formats_[idx-1] = 0;        // text format
     }
 
-    void set_text(int idx, std::string value) override {
+    void bind_text(int idx, std::string value) override {
         if (static_cast<size_t>(idx) > values_.size()) {
             values_.resize(idx);
         }
@@ -189,8 +188,17 @@ private:
 
 /*=============================  PgConnection  =============================*/
 class PgConnection final : public SQLConnection {
+private:
+    PGconn* conn_ = nullptr;
 public:
     ~PgConnection() override { disconnect(); }
+
+    void createDB(const std::string &dsn) override {
+        //create the DB
+        //create CItext
+        //create the sequence table to hold nextValue
+        //
+    }
 
     void connect(const std::string& dsn) override {
         disconnect();
@@ -211,18 +219,16 @@ public:
     }
 
     bool begin() override {
-        try {
-            if (tr_started_) return true;
-            tr_started_ = execSQL("BEGIN;");
-            return tr_started_;
-        } catch(...) {
-            return false;
-        }
+        if (tr_started_) return true;
+        std::string s = "BEGIN;";
+        tr_started_ = execDDL(s);
+        return tr_started_;
     }
 
     bool commit() {
         if (!tr_started_) return false;
-        if (execSQL("COMMIT;")) {
+        std::string s = "COMMIT;";
+        if (execDDL(s)) {
             tr_started_ = false;
             return true;
         }
@@ -231,60 +237,87 @@ public:
 
     void rollback() {
         if (!tr_started_) return;
-        if (execSQL("ROLLBACK;")) {
+        std::string s = "ROLLBACK;";
+        if (execDDL(s)) {
             tr_started_ = false;
         }
     }
 
-    std::unique_ptr<SQLStatement> prepare(const std::string& sql, int numParams=-1) override {
+    std::unique_ptr<SQLStatement> prepare(const std::string& sql, int numParams=-1) const override {
         if (!conn_) THROW("prepare: not connected");
         return std::make_unique<PgStatement>(conn_, sql, stmtName());
     }
 
-    int64_t nextValue(std::string name) override{
-        std::string sql = std::format("select nextval('%s')", name);
-        std::unique_ptr<SQLStatement> stmt = prepare(sql);
+    uint64_t nextValue(const std::string &name) override{
+        std::string sql = "select nextval('"+name+"');";
+        char *newid;
+        if (execGET(sql, &newid) ) {
+            const std::string s(reinterpret_cast<const char*>(newid));
+            return std::stoull(s);
+        };
         return 0 ;
     }
 
-    jdoc select(std::string sql)  {
-        jdoc resp;
-        resp.AddMember("fieldname", "avalue", resp.GetAllocator());
-        return resp;
-    }
-
-private:
-    bool execSQL(const char* sql) {
-        if (!conn_) THROW("exec_simple_: not connected");
-        PGresult* res = PQexec(conn_, sql);
-        if (!res) THROW(std::string("Postgres error executing: ") + sql);
+    bool execDDL(const std::string &ddl) override { // no rows affected, neither returning values
+        if (!conn_) THROW("[execDDL()]: not connected");
+        PGresult* res = PQexec(conn_, ddl.c_str());
+        if (!res) THROW("[execDDL()]: Postgres error executing: %s", ddl.c_str());
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
             std::string err = PQerrorMessage(conn_);
             PQclear(res);
-            THROW("Postgres error: " + err);
+            THROW("[execDDL()]:Postgres error: " + err);
         }
         PQclear(res);
         return true;
-    }
+    };
 
-    bool select(const char* sql) {
+    int execDML(const std::string &dml, void *result) override {// rows-affected and returning value
         if (!conn_) THROW("exec_simple_: not connected");
-        PGresult* res = PQexec(conn_, sql);
-        if (!res) THROW(std::string("Postgres error executing: ") + sql);
-        if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        PGresult* res = PQexec(conn_, dml.c_str());
+        if (!res) THROW("Postgres error executing: %s", dml.c_str());
+        result = nullptr;
+        int rc = PQresultStatus(res);
+        if (rc == PGRES_TUPLES_OK ) {
+            if ( !PQgetisnull(res, 0,0) ) {
+                result = PQgetvalue(res, 0, 0);
+            }
+            char *rows = PQcmdTuples(res);
+            PQclear(res);
+            return atoi(rows);
+        }
+        if (rc != PGRES_COMMAND_OK) {
             std::string err = PQerrorMessage(conn_);
             PQclear(res);
             THROW("Postgres error: " + err);
         }
-        PQclear(res);
-        return true;
-    }
+        result = 0;
+        return 0;
 
-    PGconn* conn_ = nullptr;
+    };
+
+    bool execGET(const std::string &sql, char **result) override {// no row count, just a returning value
+        if (!conn_) THROW("exec_simple_: not connected");
+        PGresult* res = PQexec(conn_, sql.c_str());
+        if (!res) THROW("Postgres error executing: %s", sql.c_str());
+        *result = (char*)"0";
+        int rc = PQresultStatus(res);
+        if (rc == PGRES_TUPLES_OK ) {
+            if ( !PQgetisnull(res, 0,0) ) {
+                *result = PQgetvalue(res, 0, 0);
+            }
+            return true;
+        }
+        if (rc != PGRES_COMMAND_OK) {
+            std::string err = PQerrorMessage(conn_);
+            PQclear(res);
+            THROW("Postgres error: " + err);
+        }
+        return false;
+    };
 };
 
 #if HAVE_POSTGRESQL
-PSQLConnection make_postgres_connection() {
+std::unique_ptr<SQLConnection> make_postgres_connection() {
     return std::make_unique<PgConnection>();
 }
 #endif

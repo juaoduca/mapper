@@ -18,10 +18,10 @@
             ]
         },
         {
-            "name": "Debug DML",
+            "name": "Test Catalog",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/test_dml",
+            "program": "${workspaceFolder}/build/test_schemacatalog",
             "args": [
                 "-c",
                 "INSERT: PK absent"

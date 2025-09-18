@@ -4,8 +4,7 @@
 
 static OrmSchema load_schema_from_json(const std::string& js) {
     OrmSchema s;
-    jdoc doc;
-    jhlp::parse_str(js, doc);
+    jdoc doc = jhlp::parse_str(js);
     REQUIRE(OrmSchema::from_json(doc, s));
     return s;
 }
@@ -26,8 +25,8 @@ TEST_CASE("sql_default emits correct SQL for all DefaultKind variants (Postgres 
 
     PgDDLVisitor pg;
     auto ddl_pg = pg.visit(schema);
-    REQUIRE(ddl_pg.find("CREATE TABLE IF NOT EXISTS users(") != std::string::npos);
-    REQUIRE(ddl_pg.find("s TEXT") != std::string::npos);
+    REQUIRE(ddl_pg.find("CREATE TABLE IF NOT EXISTS \"users\"(") != std::string::npos);
+    REQUIRE(ddl_pg.find("\"s\" TEXT") != std::string::npos);
     REQUIRE(ddl_pg.find("DEFAULT 'abc'") != std::string::npos);
     REQUIRE(ddl_pg.find("DEFAULT true") != std::string::npos);
     REQUIRE(ddl_pg.find("DEFAULT 42") != std::string::npos);

@@ -5,8 +5,7 @@
 // Helper: build schema from JSON string
 OrmSchema load_schema(const std::string& js) {
     OrmSchema s;
-    jdoc doc;
-    jhlp::parse_str(js, doc);
+    jdoc doc = jhlp::parse_str(js);
     OrmSchema::from_json(doc, s);
     return s;
 }
@@ -36,17 +35,17 @@ TEST_CASE("DDL covers all types and features", "[ddl]") {
 
     PgDDLVisitor pgvis;
     std::string ddl_pg = pgvis.generate_ddl(schema);
-    REQUIRE(ddl_pg.find("CREATE TABLE IF NOT EXISTS users") != std::string::npos);
-    REQUIRE(ddl_pg.find("id TEXT NOT NULL") != std::string::npos); // ULID PK
-    REQUIRE(ddl_pg.find("avatar BYTEA") != std::string::npos);
-    REQUIRE(ddl_pg.find("active BOOLEAN DEFAULT true") != std::string::npos);
-    REQUIRE(ddl_pg.find("email TEXT NOT NULL UNIQUE DEFAULT ''") != std::string::npos);
-    REQUIRE(ddl_pg.find("score INTEGER NOT NULL DEFAULT 42") != std::string::npos);
-    REQUIRE(ddl_pg.find("profile JSON") != std::string::npos);
-    REQUIRE(ddl_pg.find("last_seen TIMESTAMP") != std::string::npos);
-    REQUIRE(ddl_pg.find("PRIMARY KEY (id)") != std::string::npos);
-    REQUIRE(ddl_pg.find("CREATE UNIQUE INDEX idx_email ON users (email);") != std::string::npos);
-    REQUIRE(ddl_pg.find("CREATE INDEX idx_score_active ON users (score, active);") != std::string::npos);
+    REQUIRE(ddl_pg.find("CREATE TABLE IF NOT EXISTS \"users\"") != std::string::npos);
+    REQUIRE(ddl_pg.find("\"id\" TEXT NOT NULL") != std::string::npos); // ULID PK
+    REQUIRE(ddl_pg.find("\"avatar\" BYTEA") != std::string::npos);
+    REQUIRE(ddl_pg.find("\"active\" BOOLEAN DEFAULT true") != std::string::npos);
+    REQUIRE(ddl_pg.find("\"email\" TEXT NOT NULL UNIQUE DEFAULT ''") != std::string::npos);
+    REQUIRE(ddl_pg.find("\"score\" INTEGER NOT NULL DEFAULT 42") != std::string::npos);
+    REQUIRE(ddl_pg.find("\"profile\" JSON") != std::string::npos);
+    REQUIRE(ddl_pg.find("\"last_seen\" TIMESTAMP") != std::string::npos);
+    REQUIRE(ddl_pg.find("PRIMARY KEY (\"id\")") != std::string::npos);
+    REQUIRE(ddl_pg.find("CREATE UNIQUE INDEX \"idx_email\" ON \"users\" (\"email\");") != std::string::npos);
+    REQUIRE(ddl_pg.find("CREATE INDEX \"idx_score_active\" ON \"users\" (\"score\", \"active\");") != std::string::npos);
 }
 
 TEST_CASE("DDL fails on duplicate fields", "[ddl][error]") {

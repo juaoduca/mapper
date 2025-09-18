@@ -1,52 +1,54 @@
 #include "schemaupdate.hpp"
 #include "ddl_visitor.hpp"
-#include <unordered_map>
 #include <set>
+#include <unordered_map>
 
-SchemaUpdate::SchemaUpdate(const OrmSchema& old_schema, const OrmSchema& new_schema)
-    : old_schema_(old_schema), new_schema_(new_schema) {}
+SchemaUpdate::SchemaUpdate(const OrmSchema* old_schema, const OrmSchema& new_schema, std::shared_ptr<DDLVisitor> visitor)
+    : old_schema_(old_schema)
+    , new_schema_(new_schema)
+    , visitor_(visitor) { }
 
-    std::vector<std::string> SchemaUpdate::plan_migration(const std::string& db_engine) {
-
+std::vector<std::string> SchemaUpdate::plan_migration() {
+    if (old_schema_ == nullptr) THROW("Old schema cannot be null");
+    auto v = visitor_;
+    auto Q = [&](const std::string& id) -> std::string { return v->quote(id); };
     std::vector<std::string> ddl_statements;
-
+    std::string table = old_schema_->name.empty() ? new_schema_.name : old_schema_->name;
+    table = Q(table);
     // Build maps for quick lookup
-    std::unordered_map<std::string, OrmProp> old_fields, new_fields;
-    for (const auto& f : old_schema_.fields) old_fields[f.second.name] = f.second;
-    for (const auto& f : new_schema_.fields) new_fields[f.second.name] = f.second;
+    std::unordered_map<std::string, std::shared_ptr<OrmProp>> old_fields, new_fields;
+    for (const auto& f : old_schema_->fields) old_fields[f.second->name] = f.second;
+    for (const auto& f : new_schema_.fields) new_fields[f.second->name] = f.second;
 
     // ADD & ALTER columns
     for (const auto& [name, nf] : new_fields) {
         auto it = old_fields.find(name);
         if (it == old_fields.end()) {
             // ADD COLUMN
-            DDLVisitor* v = nullptr;
-            if (db_engine == "postgres") v = new PgDDLVisitor();
-            else v = new SqliteDDLVisitor();
-            std::string col_sql = nf.name + " " + v->sql_type(nf);
-            if (nf.required) col_sql += " NOT NULL";
-            if (nf.is_unique) col_sql += " UNIQUE";
-            col_sql += v->sql_default(nf);
-            delete v;
-            ddl_statements.push_back("ALTER TABLE users ADD COLUMN " + col_sql + ";");
+            // DDLVisitor* v = nullptr;
+            // if (db_engine == "postgres") v = new PgDDLVisitor();
+            // else v = new SqliteDDLVisitor();
+            std::string col_sql = Q( nf->name) + " " + v->sql_type(*nf);
+            if ( nf->required) col_sql += " NOT NULL";
+            if ( nf->is_unique) col_sql += " UNIQUE";
+            col_sql += v->sql_default(*nf);
+            ddl_statements.push_back("ALTER TABLE " + table + " ADD COLUMN " + col_sql + ";");
         } else {
             const auto& of = it->second;
             // ALTER COLUMN TYPE
-            if (nf.type != of.type) {
-                ddl_statements.push_back("ALTER TABLE users ALTER COLUMN " + nf.name +
-                    " TYPE " + proptype( nf.type ) + ";");
+            if ( nf->type != of->type) {
+                ddl_statements.push_back("ALTER TABLE " + table + " ALTER COLUMN " + Q( nf->name) + " TYPE " + proptype( nf->type) + ";");
             }
             // ALTER COLUMN DEFAULT
-            if (nf.default_value != of.default_value) {
-                ddl_statements.push_back("ALTER TABLE users ALTER COLUMN " + nf.name +
-                    " SET DEFAULT " + (nf.default_value.empty() ? "NULL" : nf.default_value) + ";");
+            if ( nf->default_value != of->default_value) {
+                ddl_statements.push_back("ALTER TABLE " + table + " ALTER COLUMN " + Q( nf->name) + " SET DEFAULT " + ( nf->default_value.empty() ? "NULL" :  nf->default_value) + ";");
             }
             // ALTER COLUMN NULLABILITY
-            if (nf.required != of.required) {
-                if (nf.required)
-                    ddl_statements.push_back("ALTER TABLE users ALTER COLUMN " + nf.name + " SET NOT NULL;");
+            if ( nf->required != of->required) {
+                if ( nf->required)
+                    ddl_statements.push_back("ALTER TABLE " + table + " ALTER COLUMN " + Q( nf->name) + " SET NOT NULL;");
                 else
-                    ddl_statements.push_back("ALTER TABLE users ALTER COLUMN " + nf.name + " DROP NOT NULL;");
+                    ddl_statements.push_back("ALTER TABLE " + table + " ALTER COLUMN " + Q( nf->name) + " DROP NOT NULL;");
             }
             // ALTER COLUMN UNIQUENESS (this is really an index operation, handle below)
         }
@@ -54,20 +56,20 @@ SchemaUpdate::SchemaUpdate(const OrmSchema& old_schema, const OrmSchema& new_sch
     // DROP columns
     for (const auto& [name, of] : old_fields) {
         if (new_fields.find(name) == new_fields.end()) {
-            ddl_statements.push_back("ALTER TABLE users DROP COLUMN " + of.name + ";");
+            ddl_statements.push_back("ALTER TABLE " + table + " DROP COLUMN " + Q(of->name) + ";");
         }
     }
 
     // Indexes: by name for easier diff
-    auto to_index_key = [](const OrmIndex& idx) {
+    auto to_index_key = [&](const OrmIndex& idx) {
         std::string k = idx.index_name + ":";
-        for (auto& f : idx.fields) k += f + ",";
+        for (auto& f : idx.fields) k += Q(f) + ",";
         k += idx.type + (idx.unique ? ":U" : "");
         return k;
     };
 
     std::unordered_map<std::string, OrmIndex> old_idx_map, new_idx_map;
-    for (const auto& idx : old_schema_.indexes) old_idx_map[to_index_key(idx)] = idx;
+    for (const auto& idx : old_schema_->indexes) old_idx_map[to_index_key(idx)] = idx;
     for (const auto& idx : new_schema_.indexes) new_idx_map[to_index_key(idx)] = idx;
 
     // Add new indexes
@@ -76,10 +78,10 @@ SchemaUpdate::SchemaUpdate(const OrmSchema& old_schema, const OrmSchema& new_sch
             std::string sql = "CREATE ";
             if (idx.unique) sql += "UNIQUE ";
             sql += "INDEX ";
-            if (!idx.index_name.empty()) sql += idx.index_name + " ";
-            sql += "ON users (";
+            if (!idx.index_name.empty()) sql += Q(idx.index_name) + " ";
+            sql += "ON " + table + " (";
             for (size_t i = 0; i < idx.fields.size(); ++i) {
-                sql += idx.fields[i];
+                sql += Q(idx.fields[i]);
                 if (i < idx.fields.size() - 1) sql += ", ";
             }
             sql += ");";

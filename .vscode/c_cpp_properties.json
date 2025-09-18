@@ -5,6 +5,10 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
+                "${workspaceFolder}/include/**",
+                "${workspaceFolder}/include/query/**",
+                "${workspaceFolder}/include/query/*.c",
+                "${workspaceFolder}/include/query/*.h",
                 "/usr/include/postgresql"
             ],
             "defines": [],

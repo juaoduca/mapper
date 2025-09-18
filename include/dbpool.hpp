@@ -5,21 +5,14 @@
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <sqlconnection.hpp>
 #include <stdexcept>
+#include "sqlconnection.hpp"
 #include "lib.hpp"
-
-using PConn = std::shared_ptr<SQLConnection>;
-
-PSQLConnection make_postgres_connection();
-PSQLConnection make_sqlite_connection();
 
 namespace pool {
 
-enum class DbIntent { Read,
-    Write };
-enum class PoolAcquireError { Timeout,
-    Shutdown };
+enum class DbIntent { Read, Write };
+enum class PoolAcquireError { Timeout, Shutdown };
 
 struct PoolStats {
     std::size_t size { 0 };
@@ -38,7 +31,7 @@ class IDbPool;
 // --------- RAII Lease (no templates) ----------
 class Lease {
 public:
-    Lease(IDbPool* owner, PConn conn, DbIntent intent)
+    Lease(IDbPool* owner, std::shared_ptr<SQLConnection> conn, DbIntent intent)
         : owner_(owner)
         , conn_(std::move(conn))
         , intent_(intent) { }
@@ -117,7 +110,7 @@ class DbPool final : public pool::IDbPool {
 public:
     DbPool(std::size_t capacity,
         std::string dsn,
-        std::function<PSQLConnection()> factory,
+        std::function<std::unique_ptr<SQLConnection>()> factory,
         pool::AcquirePolicy policy = {})
         : cap_(capacity)
         , dsn_(std::move(dsn))
@@ -200,7 +193,7 @@ private:
         free_.clear();
         for (std::size_t i = 0; i < cap_; ++i) {
             if (!factory_) THROW("DbPool: null connection factory");
-            PSQLConnection up = factory_();
+            std::unique_ptr<SQLConnection> up = factory_();
             if (!up) THROW("DbPool: factory returned null connection");
             up->connect(dsn_);
             // move unique_ptr -> shared_ptr with custom deleter
@@ -220,5 +213,5 @@ private:
     std::deque<std::shared_ptr<SQLConnection>> free_;
     bool shutdown_ { false };
     pool::PoolStats stats_;
-    std::function<PSQLConnection()> factory_;
+    std::function<std::unique_ptr<SQLConnection>()> factory_;
 };
