@@ -1,27 +1,22 @@
 
-# ecm Project - ORM FastCGI Module with Visitor Pattern
+Mapper module project
 
-## Structure
+is a module to make Object Relational Mapping
 
-- `main.cpp`: Program entry, demo for DDL generation via Visitor pattern.
-- `include/orm.hpp`, `include/visitor.hpp`, `src/orm.cpp`, `src/visitor.cpp`: Clean OO code.
-- `data/example-schema.json`: Example JSON schema for a table/model.
+where the objects are defined by a JSON object and NOT by Object Oriented languages objects
 
-## Dependencies
+The objects are defined using a JSONSchema definition with custom extensions
 
-- nlohmann-json3-dev (for JSON parsing)
-    sudo apt install nlohmann-json3-dev
+The objects are stored in DB, loaded at startup, and referenced when needed for CRUD operations
 
-## Build
+There is a query language inspired by GraphQL to build SQL select script that returns JSON array with objects
 
-```sh
-mkdir build && cd build
-cmake ..
-make
-```
+the query defined like a GraphQL query, is parsed to an AST that is visited by a vistor who build the select script
 
-## Run
+the query engine is capable to keep cache of queries and accepts params change to speed up the queries
 
-```sh
-./orm
-```
+The mapper create Audit and Track info for each ISERT UPDATE and DELETE operations
+
+The Mapper can send/receive data to/from other server(s) in an Asynch operation, to keep data updated in distributed databases
+
+The mapper work in as a Multi-Tenant mode, with one Database per Tenant, but handling multiple Users / tenants / requests in parallel
