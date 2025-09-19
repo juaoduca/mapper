@@ -1,9 +1,13 @@
 #ifndef C_LEXER_HPP
 #define C_LEXER_HPP
+    #pragma once
 
     #ifdef __cplusplus
     extern "C" {
     #endif
+
+    #ifndef C_LEXER_H
+    #define C_LEXER_H
 
     #include <cerrno>
     #include <stdint.h>
@@ -121,7 +125,7 @@
         ttL_SQUARE , // [
         ttB_SLASH  , // back_slash
         ttR_SQUARE , // ]
-        ttCARET      , // ^  caret
+        ttCARET    , // ^  caret
         ttU_SCORE  , // _  underscore
         ttACCENT   , // ´  accent
         tt_LOWER_a , // a
@@ -150,7 +154,7 @@
         tt_LOWER_x , // x
         tt_LOWER_y , // y
         tt_LOWER_z , // z
-        ttL_CURLY  , // }
+        ttL_CURLY  , // {
         ttBAR      , // |
         ttR_CURLY  , // }
         ttTILDE    , // ~  Last single char index
@@ -701,11 +705,18 @@
         token_.value[0] = '\0';
         token_.type = ttEOF;
         // lx->pos++;
+        // KEEPS the following white_spaces for peek_char()
         return token_;
     }
+
+    char peek_char(Lexer *lx) {
+        return *lx->pos;
+    }
+
+    #endif // C_LEXER_H
 
     #ifdef __cplusplus
     }
     #endif
 
-#endif
+#endif // C_LEXER_HPP

@@ -18,10 +18,10 @@
             ]
         },
         {
-            "name": "Test Catalog",
+            "name": "Test Query compiler",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/test_schemacatalog",
+            "program": "${workspaceFolder}/build/test_query_compiler",
             "args": [
                 "-c",
                 "INSERT: PK absent"

@@ -157,7 +157,7 @@ public:
     virtual std::unique_ptr<AST> parse();
     // virtual std::unique_ptr<AST> parse() { return expr(); }
 
-    virtual std::unique_ptr<Op> getOperation(Op *op);
+    virtual bool getOperation(Op *op);
 };
 
 // --- Tree Traversal for Printing ---
@@ -189,25 +189,25 @@ void print_ast(const AST* node, int indent = 0) {
 }
 
 // --- Main function to run the example ---
-int main() {
-    try {
-        // Mock token stream for the expression: (10 + 5) * 2 - 3 / 1
-        char *expr = "(10 + 5) * 2 - 3 / 1";
-        Lexer lx = init_lexer(expr);
-        Storage st("", Dialect::SQLite);
-        Parser parser(lx, st);
+// int main() {
+//     try {
+//         // Mock token stream for the expression: (10 + 5) * 2 - 3 / 1
+//         char *expr = "(10 + 5) * 2 - 3 / 1";
+//         Lexer lx = init_lexer(expr);
+//         Storage st("", Dialect::SQLite);
+//         Parser parser(lx, st);
 
-        std::cout << "Parsing expression: (10 + 5) * 2 - 3 / 1" << std::endl;
-        std::unique_ptr<AST> ast = parser.parse();
+//         std::cout << "Parsing expression: (10 + 5) * 2 - 3 / 1" << std::endl;
+//         std::unique_ptr<AST> ast = parser.parse();
 
-        std::cout << "\nGenerated AST:" << std::endl;
-        print_ast(ast.get());
-        std::cout << std::endl;
+//         std::cout << "\nGenerated AST:" << std::endl;
+//         print_ast(ast.get());
+//         std::cout << std::endl;
 
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        return 1;
-    }
+//     } catch (const std::exception& e) {
+//         std::cerr << "Error: " << e.what() << std::endl;
+//         return 1;
+//     }
 
-    return 0;
-}
+//     return 0;
+// }

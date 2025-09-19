@@ -75,7 +75,7 @@ fi
 # Handle -d --debug option
 if [ $DEBUG -eq 1 ]; then
     echo "Configuring DEBUG build..."
-    CMAKE_ARGS="-S . -B .. -DCMAKE_BUILD_TYPE=Debug"
+    CMAKE_ARGS=".. -DCMAKE_BUILD_TYPE=Debug"
 fi
 
 if [ $CONFIG -eq 1 ]; then

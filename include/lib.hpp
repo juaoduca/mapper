@@ -143,7 +143,16 @@ namespace lib {
         return os.str();
     }
 
-
+    inline bool istrcmp(const char *ls, const char *rs) {
+        const char *l = ls;
+        const char *r = rs;
+        if (*l==0 || *r==0) { return true; };
+        while (*l || *r) {
+            if (std::tolower(*l) != std::tolower(*r) ) { return false; }
+            l++; r++;
+        }
+        return true;
+    }
 } // namespace lib
 
 #endif // LIB_HPP

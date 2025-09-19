@@ -61,7 +61,7 @@ public:
     bool               applied = false; // avoid useless re-processing
     mutable DateTime   applied_at; // value as a chrono time_point
     std::string        json = "{}"; // JSONchema string with data structure
-    std::weak_ptr<const OrmSchema> parent; // pointer to parent
+    std::weak_ptr<OrmSchema> parent; // pointer to parent
     mutable std::vector<OrmSchema> ladder; // the parent chain to the root parent
     // mutable std::shared_ptr<CatalogItem> catalog_item;
     std::unordered_map<std::string, std::shared_ptr<OrmProp>> fields; // keep insertion order - reflected on DB Tables

@@ -28,7 +28,8 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(SQLITE3 REQUIRED sqlite3)
 
 # --- Sources (auto-refresh on new/removed files) ---
-file(GLOB SOURCES CONFIGURE_DEPENDS "src/*.cpp")
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+
 
 # If libpq absent, drop PG-specific source
 if (NOT HAVE_POSTGRESQL)
@@ -37,7 +38,7 @@ endif()
 
 # ---- Core library: single source of truth for src/*.cpp ----
 add_library(orm_core STATIC ${SOURCES})
-target_include_directories(orm_core PUBLIC include rapidjson)
+target_include_directories(orm_core PUBLIC include include/query rapidjson)
 target_compile_definitions(orm_core PRIVATE HAVE_POSTGRESQL=$<BOOL:${HAVE_POSTGRESQL}>)
 target_link_libraries(orm_core
     # PRIVATE rapidjson
