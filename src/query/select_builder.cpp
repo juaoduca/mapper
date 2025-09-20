@@ -166,7 +166,12 @@ std::string SelectBuilder::build_sql(const ql::QueryDoc& q) const {
              << " = "    << cur.alias  << "." << qident("ID", dialect_) << ")\n";
     }
 
-    struct OutCol {
+
+    // Additional FK joins for OBJECT props referenced in nested selections
+    std::unordered_map<std::string,std::string> fk_join_alias; // key: tableAlias.fieldName -> join alias
+    std::vector<std::string> fk_joins_sql;
+    size_t fk_join_seq = 0;
+struct OutCol {
         std::string key;     // JSON key (alias or name), case-preserved
         std::string expr;    // SQL expression for that key (may include aggregate)
         bool isGroup = false;
@@ -200,6 +205,74 @@ std::string SelectBuilder::build_sql(const ql::QueryDoc& q) const {
 
         const std::string baseExpr = tableAlias + "." + qident(owner->name, dialect_);
 
+        // If this field has a nested subselection, it denotes an FK join to the referenced schema.
+        if (!f.subselection.empty()) {
+            if (owner->type != PropType::Object) {
+                throw std::runtime_error("Subselection only allowed on OBJECT (FK) fields: " + owner->name);
+            }
+            auto refSchema = owner->ref_Schema.lock();
+            auto refField  = owner->ref_Field.lock();
+            if (!refSchema || !refField) {
+                throw std::runtime_error("FK field without ref schema/field: " + owner->name);
+            }
+
+            // Build/lookup join alias for this FK
+            std::string fk_key = tableAlias + "." + owner->name;
+            std::string jAlias;
+            auto itja = fk_join_alias.find(fk_key);
+            if (itja != fk_join_alias.end()) {
+                jAlias = itja->second;
+            } else {
+                jAlias = "j" + std::to_string(fk_join_seq++);
+                fk_join_alias[fk_key] = jAlias;
+                std::ostringstream j;
+                j << "LEFT JOIN " << qident(refSchema->name, dialect_) << " " << jAlias
+                  << " ON (" << tableAlias << "." << qident(owner->name, dialect_)
+                  << " = "   << jAlias     << "." << qident(refField->name, dialect_) << ")\n";
+                fk_joins_sql.push_back(j.str());
+            }
+
+            // Build nested JSON object from the referenced table columns
+            std::vector<std::pair<std::string,std::string>> nested_pairs;
+            for (const auto& nf : f.subselection) {
+                const std::string nkey = nf.alias.value_or(nf.name);
+
+                // find referenced prop by name (case-insensitive) in refSchema
+                const OrmProp* nprop = nullptr;
+                for (const auto& kvp : refSchema->fields) {
+                    if ( lib::istrcmp(kvp.second->name.c_str(), nf.name.c_str()) ) {
+                        nprop = kvp.second.get();
+                        break;
+                    }
+                }
+                if (!nprop) throw std::runtime_error("Nested field not found in referenced schema: " + nf.name);
+
+                const std::string nbase = jAlias + "." + qident(nprop->name, dialect_);
+
+                std::string nexpr = nbase;
+                if (nf.dt && nf.dt->kind != ql::DtFuncKind::None) {
+                    if (!is_dt_prop(nprop->type)) {
+                        throw std::runtime_error("Date/time function used on non-date/time nested field: " + nprop->name);
+                    }
+                    nexpr = (dialect_ == Dialect::Postgres)
+                        ? apply_dtfunc_pg(nbase, *nf.dt)
+                        : apply_dtfunc_sqlite(nbase, *nf.dt);
+                }
+                nested_pairs.emplace_back(nkey, nexpr);
+            }
+
+            const auto nested_json = json_object_sql(dialect_, nested_pairs);
+
+            OutCol oc_nested;
+            oc_nested.key    = key;
+            oc_nested.expr   = nested_json;
+            oc_nested.isGroup= false;
+            oc_nested.isAgg  = false;
+            out.push_back(std::move(oc_nested));
+            // Skip scalar handling for this field
+            continue;
+        }
+
         // Apply date/time transformation (non-aggregate path)
         std::string transformedExpr = baseExpr;
         if (f.dt && f.dt->kind != ql::DtFuncKind::None) {
@@ -230,6 +303,11 @@ std::string SelectBuilder::build_sql(const ql::QueryDoc& q) const {
             groupBy.push_back(oc.isAgg ? baseExpr : transformedExpr);
         }
         out.push_back(std::move(oc));
+    }
+
+    // Append FK joins collected from nested selections
+    for (const auto& jsql : fk_joins_sql) {
+        from << jsql;
     }
 
     // Validate: if there is any aggregate, every non-agg must be grouped
@@ -267,6 +345,6 @@ std::string SelectBuilder::build_sql(const ql::QueryDoc& q) const {
 
     sql << ") s;";
 
-    std::cout << sql.str() << std::endl;
+    std::cout << sql.str() << std::endl << std::endl;
     return sql.str();
 }

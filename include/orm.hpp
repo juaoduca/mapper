@@ -31,7 +31,7 @@ struct OrmProp {
     PropType                 type                            ; // prop Dataype / field Datatype
     std::string              encoding                        ; // encoding type for binary data (yEnc, Base64 etc)
     std::weak_ptr<OrmSchema> ref_Schema                      ; // foreink schema
-    std::weak_ptr<OrmProp>   ref_Field                       ; // foreing prop
+    std::weak_ptr<OrmProp>   ref_Field                       ; // foreing prop FK
     bool                     required     = false            ; //must be filled or not
     DefaultKind              default_kind = DefaultKind::None; // if have a default, the default Datatype
     std::string              default_value                   ; // if have a default, default value

@@ -32,6 +32,7 @@ TEST_CASE("SelectBuilder Aggregations", "PG_SQL_AGG") {
 
     // Query with aggregation & group by
     const char* doc = "{ Dog { breed.groupby , dog_per_breed:id.count , average_age:age.avg } }";
+    std::cout << doc << std::endl << std::endl;
     ql::QueryCompiler qc;
     auto ast = qc.compile(doc);
 
@@ -54,6 +55,7 @@ TEST_CASE("SelectBuilder Aggregations", "PG_SQL_AGG") {
 
 TEST_CASE("QueryCompiler", "Minimal") {
     const char* doc = "{ Golden_Retriever { Name, Age, Breed } }";
+    std::cout << doc << std::endl << std::endl;
     ql::QueryCompiler qc;
     auto ast = qc.compile(doc);
     REQUIRE(ast.rootTypeName == "Golden_Retriever");
@@ -79,6 +81,7 @@ TEST_CASE("SelectBuilder", "PG_SQL") {
     };
 
     const char* doc = "{ Golden_Retriever { Name, Age, Breed } }";
+    std::cout << doc << std::endl << std::endl;
     ql::QueryCompiler qc;
     auto ast = qc.compile(doc);
 
@@ -104,6 +107,7 @@ TEST_CASE("SelectBuilder2", "SQLITE_SQL") {
     };
 
     const char* doc = "{ Dog { Name, Tag } }";
+    std::cout << doc << std::endl << std::endl;
     ql::QueryCompiler qc;
     auto ast = qc.compile(doc);
 
@@ -131,6 +135,7 @@ TEST_CASE("SelectBuilder Aggregations last", "PG_SQL_AGG") {
 
     // Query with aggregation & group by
     const char* doc = "{ Dog { breed.groupby , dog_per_breed:id.count , average_age:age.avg } }";
+    std::cout << doc << std::endl << std::endl;
     ql::QueryCompiler qc;
     auto ast = qc.compile(doc);
 
@@ -175,7 +180,7 @@ TEST_CASE("DateTime funcs - Postgres", "[dtfuncs][pg]") {
         return {};
     };
     const char* doc = "{ Dog { Only_Date:BornAt.date, Ym:BornAt.ym, Ns:BornAt.ns, Breed } }";
-    std::cout << doc << std::endl;
+    std::cout << doc << std::endl << std::endl;
     ql::QueryCompiler qc;
     auto ast = qc.compile(doc);
     SelectBuilder sb(get, Dialect::Postgres);
@@ -197,7 +202,7 @@ TEST_CASE("DateTime funcs - SQLite", "[dtfuncs][sqlite]") {
         return {};
     };
     const char* doc = "{ Dog { Time_Ms:When.timems, NdH:When.mdh } }";
-    std::cout << doc << std::endl;
+    std::cout << doc << std::endl << std::endl;
     ql::QueryCompiler qc;
     auto ast = qc.compile(doc);
     SelectBuilder sb(get, Dialect::SQLite);
@@ -207,3 +212,116 @@ TEST_CASE("DateTime funcs - SQLite", "[dtfuncs][sqlite]") {
     REQUIRE(sql.find("Time_Ms") != std::string::npos);
     REQUIRE(sql.find("NdH") != std::string::npos);
 }
+
+
+TEST_CASE("GroupBy on Date/Time derived keys - PostgreSQL", "[groupby][dt][pg]") {
+    auto Animal = makeSchemaT("Animal", nullptr, {{"ID",PropType::Integer}, {"When",PropType::Dt_Time}});
+    auto Dog    = makeSchemaT("Dog", Animal, {{"Breed",PropType::String}});
+
+    SelectBuilder::GetSchemaFn get = [&](const std::string& n)->std::shared_ptr<OrmSchema>{
+        if (n=="Animal") return Animal;
+        if (n=="Dog") return Dog;
+        return {};
+    };
+
+    // two derived keys + one aggregate to force validation of grouping
+    const char* doc = "{ Dog { TimeMs:When.timems.groupby, NdH:When.mdh.groupby, c:ID.count } }";
+    std::cout << doc << std::endl << std::endl;
+    ql::QueryCompiler qc;
+    auto ast = qc.compile(doc);
+
+    // Build for Postgres
+    SelectBuilder sb(get, Dialect::Postgres);
+    auto sql = sb.build_sql(ast);
+
+    // SELECT projections: both derived keys aliased
+    REQUIRE(sql.find("TimeMs") != std::string::npos);
+    REQUIRE(sql.find("NdH") != std::string::npos);
+    REQUIRE(sql.find("c") != std::string::npos);
+    // Postgres uses to_char for dt transforms
+    REQUIRE(sql.find("to_char(") != std::string::npos);
+    // GROUP BY uses the same transformed scalar expressions (not raw column)
+    // timems -> HH24:MI:SS.MS ; mdh -> mask expands to something containing HH24
+    REQUIRE(sql.find("GROUP BY") != std::string::npos);
+    REQUIRE(sql.find("to_char(t0.\"When\"") != std::string::npos);
+    // Count projection
+    REQUIRE(sql.find("'c', count(*)) AS") != std::string::npos);
+    // Outer JSON packaging present
+    REQUIRE(sql.find("SELECT jsonb_agg(obj) AS data") != std::string::npos);
+}
+
+TEST_CASE("GroupBy on Date/Time derived keys - SQLite", "[groupby][dt][sqlite]") {
+    auto Animal = makeSchemaT("Animal", nullptr, {{"ID",PropType::Integer}, {"When",PropType::Dt_Time}});
+    auto Dog    = makeSchemaT("Dog", Animal, {{"Breed",PropType::String}});
+
+    SelectBuilder::GetSchemaFn get = [&](const std::string& n)->std::shared_ptr<OrmSchema>{
+        if (n=="Animal") return Animal;
+        if (n=="Dog") return Dog;
+        return {};
+    };
+
+    // one derived key + one aggregate
+    const char* doc = "{ Dog { NdH:When.mdh.groupby, per_slot:ID.count } }";
+    std::cout << doc << std::endl << std::endl;
+    ql::QueryCompiler qc;
+    auto ast = qc.compile(doc);
+
+    SelectBuilder sb(get, Dialect::SQLite);
+    auto sql = sb.build_sql(ast);
+
+    // strftime appears in projection and in GROUP BY
+    REQUIRE(sql.find("strftime(") != std::string::npos);
+    REQUIRE(sql.find("GROUP BY") != std::string::npos);
+    REQUIRE(sql.find("strftime('%m-%dT%H', t0.\"When\")") != std::string::npos);
+    // JSON wrapper for SQLite
+    REQUIRE(sql.find("SELECT json_group_array(obj) AS data") != std::string::npos);
+}
+
+TEST_CASE("Aggregates require non-agg fields to be .groupby (Postgres)", "[groupby][error][pg]") {
+    // Animal -> Canine -> Dog
+    auto Animal = makeSchema("Animal", nullptr, {"ID","Age"});
+    auto Canine = makeSchema("Canine", Animal, {});
+    auto Dog    = makeSchema("Dog", Canine, {"Breed"});
+
+    SelectBuilder::GetSchemaFn get = [&](const std::string& n)->std::shared_ptr<OrmSchema>{
+        if (n=="Animal") return Animal;
+        if (n=="Canine") return Canine;
+        if (n=="Dog")    return Dog;
+        return {};
+    };
+
+    // Missing .groupby on Breed while using aggregates -> must throw
+    const char* doc = "{ Dog { Breed , dog_per_breed:id.count , average_age:age.avg } }";
+    ql::QueryCompiler qc;
+    auto ast = qc.compile(doc);
+
+    SelectBuilder sb(get, Dialect::Postgres);
+    REQUIRE_THROWS_WITH(
+        sb.build_sql(ast),
+        "Non-aggregated field 'Breed' must be marked with .groupby when aggregates are used"
+    );
+}
+
+TEST_CASE("Aggregates require .groupby even with dt functions (SQLite)", "[groupby][error][sqlite][dt]") {
+    // Animal -> Dog, with a datetime field
+    auto Animal = makeSchemaT("Animal", nullptr, {{"ID",PropType::Integer}, {"When",PropType::Dt_Time}});
+    auto Dog    = makeSchemaT("Dog", Animal, {{"Breed",PropType::String}});
+
+    SelectBuilder::GetSchemaFn get = [&](const std::string& n)->std::shared_ptr<OrmSchema>{
+        if (n=="Animal") return Animal;
+        if (n=="Dog")    return Dog;
+        return {};
+    };
+
+    // Derived dt key without .groupby + aggregate -> must throw (message uses alias)
+    const char* doc = "{ Dog { Time_Ms:When.timems , total:id.count } }";
+    ql::QueryCompiler qc;
+    auto ast = qc.compile(doc);
+
+    SelectBuilder sb(get, Dialect::SQLite);
+    REQUIRE_THROWS_WITH(
+        sb.build_sql(ast),
+        "Non-aggregated field 'Time_Ms' must be marked with .groupby when aggregates are used"
+    );
+}
+
