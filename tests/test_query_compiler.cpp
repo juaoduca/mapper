@@ -325,3 +325,48 @@ TEST_CASE("Aggregates require .groupby even with dt functions (SQLite)", "[group
     );
 }
 
+// ---- SQLite: FK join + nested JSON object ----
+TEST_CASE("FK nested object selection (SQLite)", "[select][join][sqlite]") {
+    auto Animal = makeSchemaT("Animal", nullptr, {{"ID",PropType::Integer}});
+    auto Dog    = makeSchemaT("Dog", Animal, {{"ID",PropType::Integer}, {"Breed",PropType::String}, {"Owner",PropType::Object}});
+    auto Owner  = makeSchemaT("Owner", nullptr, {{"ID",PropType::Integer}, {"Name",PropType::String}, {"Address",PropType::String}, {"Phone",PropType::String}});
+    // Dog.Owner -> Owner.ID
+    {
+        auto fk = Dog->fields.at("Owner");
+        fk->type = PropType::Object; fk->parent = Dog;
+        fk->ref_Schema = Owner; fk->ref_Field = Owner->fields.at("ID");
+    }
+    SelectBuilder::GetSchemaFn get = [&](const std::string& n)->std::shared_ptr<OrmSchema>{
+        if (n=="Animal") return Animal; if (n=="Dog") return Dog; if (n=="Owner") return Owner; return {};
+    };
+    const char* doc = "{ Dog { id, breed, owner { id, name, address, phone } } }";
+    ql::QueryCompiler qc; auto ast = qc.compile(doc);
+    SelectBuilder sb(get, Dialect::SQLite); auto sql = sb.build_sql(ast);
+
+    REQUIRE(sql.find("LEFT JOIN \"Owner\" j0 ON (t1.\"Owner\" = j0.\"ID\")") != std::string::npos);
+    REQUIRE(sql.find("'owner', json_object('id', j0.\"ID\", 'name', j0.\"Name\", 'address', j0.\"Address\", 'phone', j0.\"Phone\")") != std::string::npos);
+    REQUIRE(sql.find("SELECT json_group_array(obj) AS data") != std::string::npos);
+}
+
+// ---- Postgres: FK join + nested JSON object ----
+TEST_CASE("FK nested object selection (Postgres)", "[select][join][pg]") {
+    auto Animal = makeSchemaT("Animal", nullptr, {{"ID",PropType::Integer}});
+    auto Dog    = makeSchemaT("Dog", Animal, {{"ID",PropType::Integer}, {"Breed",PropType::String}, {"Owner",PropType::Object}});
+    auto Owner  = makeSchemaT("Owner", nullptr, {{"ID",PropType::Integer}, {"Name",PropType::String}, {"Phone",PropType::String}});
+    // Dog.Owner -> Owner.ID
+    {
+        auto fk = Dog->fields.at("Owner");
+        fk->type = PropType::Object; fk->parent = Dog;
+        fk->ref_Schema = Owner; fk->ref_Field = Owner->fields.at("ID");
+    }
+    SelectBuilder::GetSchemaFn get = [&](const std::string& n)->std::shared_ptr<OrmSchema>{
+        if (n=="Animal") return Animal; if (n=="Dog") return Dog; if (n=="Owner") return Owner; return {};
+    };
+    const char* doc = "{ Dog { id, breed, owner { id, phone } } }";
+    ql::QueryCompiler qc; auto ast = qc.compile(doc);
+    SelectBuilder sb(get, Dialect::Postgres); auto sql = sb.build_sql(ast);
+
+    REQUIRE(sql.find("LEFT JOIN \"Owner\" j0 ON (t1.\"Owner\" = j0.\"ID\")") != std::string::npos);
+    REQUIRE(sql.find("'owner', jsonb_build_object('id', j0.\"ID\", 'phone', j0.\"Phone\")") != std::string::npos);
+    REQUIRE(sql.find("SELECT jsonb_agg(obj) AS data") != std::string::npos);
+}

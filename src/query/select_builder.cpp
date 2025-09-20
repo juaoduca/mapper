@@ -171,6 +171,11 @@ std::string SelectBuilder::build_sql(const ql::QueryDoc& q) const {
     std::unordered_map<std::string,std::string> fk_join_alias; // key: tableAlias.fieldName -> join alias
     std::vector<std::string> fk_joins_sql;
     size_t fk_join_seq = 0;
+
+    // // Additional FK joins for OBJECT props referenced in nested selections
+    // std::unordered_map<std::string,std::string> fk_join_alias; // key: tableAlias.fieldName -> join alias
+    // std::vector<std::string> fk_joins_sql;
+    // size_t fk_join_seq = 0;
 struct OutCol {
         std::string key;     // JSON key (alias or name), case-preserved
         std::string expr;    // SQL expression for that key (may include aggregate)
@@ -188,7 +193,9 @@ struct OutCol {
 
         // find owner + table alias (case-insensitive match)
         const OrmProp* owner = find_owner_prop(chain, f.name);
-        if (!owner) throw std::runtime_error("Field not found in hierarchy: " + f.name);
+        if (!owner) {
+            throw std::runtime_error("1-Field not found in hierarchy: " + f.name);
+        }
 
         std::string tableAlias;
         for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
@@ -245,7 +252,7 @@ struct OutCol {
                         break;
                     }
                 }
-                if (!nprop) throw std::runtime_error("Nested field not found in referenced schema: " + nf.name);
+                if (!nprop) throw std::runtime_error("2-Nested field not found in referenced schema: " + nf.name);
 
                 const std::string nbase = jAlias + "." + qident(nprop->name, dialect_);
 

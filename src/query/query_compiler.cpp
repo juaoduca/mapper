@@ -101,39 +101,76 @@ ql::QueryDoc QueryCompiler::compile(const char* doc) {
               }
         }
 
-        // if (peek_char(&lx) == '.') { // if next_token is another dot
-        //     next_token(&lx); // jump the dot
-        //     t = next_token(&lx); // get the function
-        //     std::string fn = lib::tolower(t.value);
-        //     if (t.type == ttIDENTF ) {
-        //         f.groupBy = (fn == "groupby");
-        //         if (!f.groupBy && (fn=="date" || fn=="time" || fn=="timems" || dt_mask_ok(fn))) {
-        //             DtFunc dt;
-        //             if      (fn=="date"  ) dt.kind = DtFuncKind::Date;
-        //             else if (fn=="time"  ) dt.kind = DtFuncKind::Time;
-        //             else if (fn=="timems") dt.kind = DtFuncKind::TimeMs;
-        //             else { dt.kind = DtFuncKind::Mask; dt.mask = fn; }
-        //             f.dt = std::move(dt);
-        //         }
-        //     }
-        //     else if (t.type == ttCOUNT) { f.agg = AggKind::Count;}
-        //     else if (t.type == ttAVG  ) { f.agg = AggKind::Avg  ;}
-        //     else if (t.type == ttSUM  ) { f.agg = AggKind::Sum  ;}
-        //     else { THROW("Unknown function for field: %s Function:%s ", f.name, fn); }
-        // }
+        Token look = next_token(&lx);
+        if (look.type == ttL_CURLY) {
+            // --- Parse nested subselection: owner { id, name, ... }
+            while (true) {
+                Token nt = next_token(&lx);
+                if (nt.type == ttR_CURLY) break; // allow empty {}
+                if (nt.type != ttIDENTF) throw std::runtime_error("Expected field name or '}' in subselection");
+
+                Field nf{};
+                // alias support inside nested: alias:field
+                if (peek_char(&lx) == ':') {
+                    next_token(&lx); // ':'
+                    Token id2 = next_token(&lx);
+                    if (id2.type != ttIDENTF) throw std::runtime_error("Expected field name after ':' in subselection");
+                    nf.alias = nt.value;
+                    nf.name  = id2.value;
+                } else {
+                    nf.name = nt.value;
+                }
+
+                // Optional single dt function on nested field
+                if (peek_char(&lx) == '.') {
+                    next_token(&lx);               // '.'
+                    Token ft = next_token(&lx);    // function name
+                    std::string fn2 = lib::tolower(ft.value);
+                    if (ft.type == ttIDENTF) {
+                        if (fn2=="date" || fn2=="time" || fn2=="timems" || dt_mask_ok(fn2)) {
+                            DtFunc dt2;
+                            if      (fn2=="date"  ) dt2.kind = DtFuncKind::Date;
+                            else if (fn2=="time"  ) dt2.kind = DtFuncKind::Time;
+                            else if (fn2=="timems") dt2.kind = DtFuncKind::TimeMs;
+                            else { dt2.kind = DtFuncKind::Mask; dt2.mask = fn2; }
+                            nf.dt = std::move(dt2);
+                        } else if (iequals(fn2, "groupby")) {
+                            throw std::runtime_error("groupby is not allowed inside nested subselection");
+                        } else {
+                            THROW("Unknown function for nested field: %s Function:%s ", nf.name, fn2);
+                        }
+                    } else {
+                        throw std::runtime_error("Invalid token after '.' in nested field");
+                    }
+                }
+
+                f.subselection.push_back(std::move(nf));
+
+                Token sep = next_token(&lx);
+                if (sep.type == ttCOMMA) continue;
+                if (sep.type == ttR_CURLY) break;
+                throw std::runtime_error("Expected ',' or '}' after nested field");
+            }
+
+            // after finishing nested, read the outer delimiter
+            t = next_token(&lx);
+        } else {
+            // No nested block; treat lookahead as the delimiter
+            t = look;
+        }
 
 
-        // delimiters
-        t = next_token(&lx); // maybe '.' or a delimiter
-        if (t.type == ttCOMMA || (t.type != ttR_CURLY && peek_char(&lx) == ' ') ) {
+        // Decide based on delimiter token
+        if (t.type == ttCOMMA) {
             qd.selectionSet.push_back(std::move(f));
             continue;
-        } else if (t.type == ttR_CURLY) {
+        }
+        if (t.type == ttR_CURLY) {
             qd.selectionSet.push_back(std::move(f));
             break;
-        } else {
-            throw std::runtime_error("Expected ',' or '}' after field");
         }
+        THROW("Expected ',' or '}' after field: %s", f.name);
+
     }
 
     // 4) Final '}' (closing the doc)
