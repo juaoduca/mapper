@@ -20,6 +20,16 @@ namespace {
         }
         return true;
     }
+
+    // valid mask is non-empty, only letters y m d h n s
+    static bool dt_mask_ok(const std::string& s) {
+        if (s.empty()) return false;
+        for (char c : s) {
+            if (c!='y' && c!='m' && c!='d' &&
+                c!='h' && c!='n' && c!='s') return false;
+        }
+        return true;
+    }
 }
 
 ql::QueryDoc QueryCompiler::compile(const char* doc) {
@@ -42,69 +52,72 @@ ql::QueryDoc QueryCompiler::compile(const char* doc) {
 
     // fields
     while (true) {
-        Token look = next_token(&lx);
-        if (look.type == ttR_CURLY) break; // empty set or end
+        t = next_token(&lx);
+        if (t.type == ttR_CURLY) break; // empty set or end {query {}}
 
         Field f{};
-        if (look.type != ttIDENTF) throw std::runtime_error("Expected field name or '}'");
+        if (t.type != ttIDENTF) throw std::runtime_error("Expected field name or '}'");
         char peek = peek_char(&lx);
-        if (peek == ':') {
-            f.alias = look.value; // alias name
+        if (peek == ':') { // field_token is an Alias => [Alias]:FieldName.Function
+            f.alias = t.value; // alias name
             next_token(&lx); //advance to ignore collon
-            Token fieldName = next_token(&lx);
-            if (fieldName.type != ttIDENTF) throw std::runtime_error("Expected field name after ':'");
-            f.name  = fieldName.value;
+            t = next_token(&lx); // next tokem must be the field name
+            if (t.type != ttIDENTF) throw std::runtime_error("Expected field name after ':'");
+            f.name  = t.value; //
+            //for future - next_token() can be l_paren for field args [Alias]:FieldName(args).function.function ...
         } else {
-            f.name = look.value;
+            f.name = t.value;
         }
 
-        Token tok = next_token(&lx); // maybe '.' or a delimiter
-        if (tok.type == ttDOT) {
-            Token suf = next_token(&lx);
-            if (suf.type == ttCOUNT) { f.agg = AggKind::Count;}
-            else if (suf.type == ttAVG) { f.agg = AggKind::Avg;}
-            else if (suf.type == ttSUM) { f.agg = AggKind::Sum;}
-            else if (suf.type == ttIDENTF && lib::istrcmp(suf.value, "groupby")) { f.groupBy = true; }
-            else { throw std::runtime_error("Unknown suffix after '.'"); }
-            tok = next_token(&lx); // maybe '.' or a delimiter
+        if (peek_char(&lx) == '.') { // if next_token is a dot
+            next_token(&lx); // jump the dot
+            t = next_token(&lx); // get the function
+            std::string fn = lib::tolower(t.value);
+            if (t.type == ttIDENTF ) {
+                f.groupBy = (fn == "groupby");
+                if (!f.groupBy && (fn=="date" || fn=="time" || fn=="timems" || dt_mask_ok(fn))) {
+                    DtFunc dt;
+                    if      (fn=="date"  ) dt.kind = DtFuncKind::Date;
+                    else if (fn=="time"  ) dt.kind = DtFuncKind::Time;
+                    else if (fn=="timems") dt.kind = DtFuncKind::TimeMs;
+                    else { dt.kind = DtFuncKind::Mask; dt.mask = fn; }
+                    f.dt = std::move(dt);
+                }
+            }
+            else if (t.type == ttCOUNT) { f.agg = AggKind::Count;}
+            else if (t.type == ttAVG  ) { f.agg = AggKind::Avg  ;}
+            else if (t.type == ttSUM  ) { f.agg = AggKind::Sum  ;}
+            else { THROW("Unknown function for field: %s Function:%s ", f.name, fn); }
         }
 
-
-
-        // if (tok.type == ttCOLON) { // alias:   <alias> : <field> [ .suffix ]
-        //     Token fieldName = next_token(&lx);
-        //     if (fieldName.type != ttIDENTF) throw std::runtime_error("Expected field name after ':'");
-        //     f.alias = left;
-        //     f.name  = fieldName.value;
-
-        //     tok = next_token(&lx); // maybe '.' or a delimiter
-        //     if (tok.type == ttDOT) {
-        //         Token suf = next_token(&lx);
-        //         if (suf.type == ttCOUNT) { f.agg = AggKind::Count;}
-        //         else if (suf.type == ttAVG) { f.agg = AggKind::Avg;}
-        //         else if (suf.type == ttSUM) { f.agg = AggKind::Sum;}
-        //         else if (suf.type == ttIDENTF && lib::istrcmp(suf.value, "groupby")) { f.groupBy = true; }
-        //         else { throw std::runtime_error("Unknown suffix after '.'"); }
-        //         tok = next_token(&lx); // delimiter after suffix
+        // if (peek_char(&lx) == '.') { // if next_token is another dot
+        //     next_token(&lx); // jump the dot
+        //     t = next_token(&lx); // get the function
+        //     std::string fn = lib::tolower(t.value);
+        //     if (t.type == ttIDENTF ) {
+        //         f.groupBy = (fn == "groupby");
+        //         if (!f.groupBy && (fn=="date" || fn=="time" || fn=="timems" || dt_mask_ok(fn))) {
+        //             DtFunc dt;
+        //             if      (fn=="date"  ) dt.kind = DtFuncKind::Date;
+        //             else if (fn=="time"  ) dt.kind = DtFuncKind::Time;
+        //             else if (fn=="timems") dt.kind = DtFuncKind::TimeMs;
+        //             else { dt.kind = DtFuncKind::Mask; dt.mask = fn; }
+        //             f.dt = std::move(dt);
+        //         }
         //     }
-        // } else { // no alias:   <field> [ .suffix ]
-        //     f.name = left;
-        //     if (tok.type == ttDOT) {
-        //         Token suf = next_token(&lx);
-        //         if (suf.type == ttCOUNT) { f.agg = AggKind::Count;}
-        //         else if (suf.type == ttAVG) { f.agg = AggKind::Avg;}
-        //         else if (suf.type == ttSUM) { f.agg = AggKind::Sum;}
-        //         else if (suf.type == ttIDENTF && lib::istrcmp(suf.value, "groupby")) { f.groupBy = true; }
-        //         else { throw std::runtime_error("Unknown suffix after '.'"); }
-        //         tok = next_token(&lx); // delimiter after suffix
-        //     }
+        //     else if (t.type == ttCOUNT) { f.agg = AggKind::Count;}
+        //     else if (t.type == ttAVG  ) { f.agg = AggKind::Avg  ;}
+        //     else if (t.type == ttSUM  ) { f.agg = AggKind::Sum  ;}
+        //     else { THROW("Unknown function for field: %s Function:%s ", f.name, fn); }
         // }
 
+
         // delimiters
-        if (tok.type == ttCOMMA || (tok.type != ttR_CURLY && peek_char(&lx) == ' ') ) {
+        t = next_token(&lx); // maybe '.' or a delimiter
+        if (t.type == ttCOMMA || (t.type != ttR_CURLY && peek_char(&lx) == ' ') ) {
             qd.selectionSet.push_back(std::move(f));
             continue;
-        } else if (tok.type == ttR_CURLY) {
+        } else if (t.type == ttR_CURLY) {
             qd.selectionSet.push_back(std::move(f));
             break;
         } else {

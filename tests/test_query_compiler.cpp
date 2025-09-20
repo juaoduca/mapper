@@ -151,3 +151,59 @@ TEST_CASE("SelectBuilder Aggregations last", "PG_SQL_AGG") {
     REQUIRE(sql.find("SELECT jsonb_agg(obj) AS data") != std::string::npos);
 }
 
+// Helpers to build schemas with explicit types
+static std::shared_ptr<OrmSchema> makeSchemaT(const std::string& name, std::shared_ptr<OrmSchema> parent,
+                                              std::initializer_list<std::pair<std::string,PropType>> props) {
+    auto s = std::make_shared<OrmSchema>();
+    s->name = name;
+    if (parent) s->parent = parent;
+    for (auto& kv : props) {
+        OrmProp p; p.name = kv.first; p.is_id = (kv.first == "ID");
+        p.type = kv.second;
+        p.parent = s;
+        s->fields.emplace(kv.first, std::make_shared<OrmProp>(std::move(p)));
+    }
+    return s;
+}
+
+TEST_CASE("DateTime funcs - Postgres", "[dtfuncs][pg]") {
+    auto Animal = makeSchemaT("Animal", nullptr, {{"ID",PropType::Integer}, {"BornAt",PropType::Dt_Time}, {"Name",PropType::String}});
+    auto Dog    = makeSchemaT("Dog", Animal, {{"Breed",PropType::String}});
+    SelectBuilder::GetSchemaFn get = [&](const std::string& n)->std::shared_ptr<OrmSchema>{
+        if (n=="Animal") return Animal;
+        if (n=="Dog") return Dog;
+        return {};
+    };
+    const char* doc = "{ Dog { Only_Date:BornAt.date, Ym:BornAt.ym, Ns:BornAt.ns, Breed } }";
+    std::cout << doc << std::endl;
+    ql::QueryCompiler qc;
+    auto ast = qc.compile(doc);
+    SelectBuilder sb(get, Dialect::Postgres);
+    auto sql = sb.build_sql(ast);
+    REQUIRE(sql.find("to_char(t0.\"BornAt\", 'YYYY-MM-DD')") != std::string::npos);
+    REQUIRE(sql.find("to_char(t0.\"BornAt\", 'YYYY-MM')") != std::string::npos);
+    REQUIRE(sql.find("to_char(t0.\"BornAt\", 'MI:SS')") != std::string::npos);
+    REQUIRE(sql.find("Only_Date") != std::string::npos);
+    REQUIRE(sql.find("Ym") != std::string::npos);
+    REQUIRE(sql.find("Ns") != std::string::npos);
+}
+
+TEST_CASE("DateTime funcs - SQLite", "[dtfuncs][sqlite]") {
+    auto Animal = makeSchemaT("Animal", nullptr, {{"ID",PropType::Integer}, {"When",PropType::Dt_Time}});
+    auto Dog    = makeSchemaT("Dog", Animal, {{"Breed",PropType::String}});
+    SelectBuilder::GetSchemaFn get = [&](const std::string& n)->std::shared_ptr<OrmSchema>{
+        if (n=="Animal") return Animal;
+        if (n=="Dog") return Dog;
+        return {};
+    };
+    const char* doc = "{ Dog { Time_Ms:When.timems, NdH:When.mdh } }";
+    std::cout << doc << std::endl;
+    ql::QueryCompiler qc;
+    auto ast = qc.compile(doc);
+    SelectBuilder sb(get, Dialect::SQLite);
+    auto sql = sb.build_sql(ast);
+    REQUIRE(sql.find("strftime('%H:%M:%f', t0.\"When\")") != std::string::npos);
+    REQUIRE(sql.find("strftime('%m-%dT%H', t0.\"When\")") != std::string::npos);
+    REQUIRE(sql.find("Time_Ms") != std::string::npos);
+    REQUIRE(sql.find("NdH") != std::string::npos);
+}

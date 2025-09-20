@@ -1,5 +1,6 @@
 #include "select_builder.hpp"
 #include "ddl_visitor.hpp" // for quote behavior reference
+#include "orm.hpp"
 #include <sstream>
 #include <unordered_map>
 #include <stdexcept>
@@ -62,18 +63,86 @@ static std::string json_array_agg_sql(Dialect d, const std::string& expr) {
     return (d == Dialect::Postgres) ? ("jsonb_agg(" + expr + ")") : ("json_group_array(" + expr + ")");
 }
 
-static std::string make_agg_expr(Dialect d, ql::AggKind k, const std::string& colExpr) {
+// --- Date/Time helpers ---
+static bool is_dt_prop(PropType t) {
+    switch (t) {
+        case PropType::Date:
+        case PropType::Time:
+        case PropType::Dt_Time:
+        case PropType::Tm_Stamp:
+            return true;
+        default: return false;
+    }
+}
+
+static std::string build_pg_format_from_mask(const std::string& mask) {
+    std::string df, tf;
+    auto add = [&](char c){
+        switch (c) {
+            case 'y': df += (df.empty()? "YYYY" : "-YYYY"); break;
+            case 'm': df += (df.empty()? "MM"   : "-MM");   break;
+            case 'd': df += (df.empty()? "DD"   : "-DD");   break;
+            case 'h': tf += (tf.empty()? "HH24" : ":HH24"); break;
+            case 'n': tf += (tf.empty()? "MI"   : ":MI");   break;
+            case 's': tf += (tf.empty()? "SS"   : ":SS");   break;
+        }
+    };
+    for (char c : mask) add(c);
+    if (df.empty()) return tf;
+    if (tf.empty()) return df;
+    return df + "T" + tf;
+}
+
+static std::string apply_dtfunc_pg(const std::string& base, const ql::DtFunc& dt) {
+    std::string fmt;
+    switch (dt.kind) {
+        case ql::DtFuncKind::Date:   fmt = "YYYY-MM-DD"; break;
+        case ql::DtFuncKind::Time:   fmt = "HH24:MI:SS"; break;
+        case ql::DtFuncKind::TimeMs: fmt = "HH24:MI:SS.MS"; break;
+        case ql::DtFuncKind::Mask:   fmt = build_pg_format_from_mask(dt.mask); break;
+        default: return base;
+    }
+    return "to_char(" + base + ", '" + fmt + "')";
+}
+
+static std::string build_sqlite_format_from_mask(const std::string& mask) {
+    std::string df, tf;
+    auto add = [&](char c){
+        switch (c) {
+            case 'y': df += (df.empty()? "%Y" : "-%Y"); break;
+            case 'm': df += (df.empty()? "%m" : "-%m"); break;
+            case 'd': df += (df.empty()? "%d" : "-%d"); break;
+            case 'h': tf += (tf.empty()? "%H" : ":%H"); break;
+            case 'n': tf += (tf.empty()? "%M" : ":%M"); break;
+            case 's': tf += (tf.empty()? "%S" : ":%S"); break;
+        }
+    };
+    for (char c : mask) add(c);
+    if (df.empty()) return tf;
+    if (tf.empty()) return df;
+    return df + "T" + tf;
+}
+
+static std::string apply_dtfunc_sqlite(const std::string& base, const ql::DtFunc& dt) {
+    std::string fmt;
+    switch (dt.kind) {
+        case ql::DtFuncKind::Date:   fmt = "%Y-%m-%d"; break;
+        case ql::DtFuncKind::Time:   fmt = "%H:%M:%S"; break;
+        case ql::DtFuncKind::TimeMs: fmt = "%H:%M:%f"; break; // includes milliseconds
+        case ql::DtFuncKind::Mask:   fmt = build_sqlite_format_from_mask(dt.mask); break;
+        default: return base;
+    }
+    return "strftime('" + fmt + "', " + base + ")";
+}
+
+static std::string make_agg_expr(Dialect, ql::AggKind k, const std::string& colExpr) {
     switch (k) {
-        case ql::AggKind::Count:
-            // semantic: COUNT(*) regardless of field (matches example)
-            return "count(*)";
-        case ql::AggKind::Avg:
-            return "avg(" + colExpr + ")";
-        case ql::AggKind::Sum:
-            return "sum(" + colExpr + ")";
+        // semantic: COUNT(*) regardless of field (matches example)
+        case ql::AggKind::Count: return "count(*)";
+        case ql::AggKind::Avg:   return "avg(" + colExpr + ")";
+        case ql::AggKind::Sum:   return "sum(" + colExpr + ")";
         case ql::AggKind::None:
-        default:
-            return colExpr;
+        default: return colExpr;
     }
 }
 
@@ -131,19 +200,35 @@ std::string SelectBuilder::build_sql(const ql::QueryDoc& q) const {
 
         const std::string baseExpr = tableAlias + "." + qident(owner->name, dialect_);
 
-        OutCol oc;
-        oc.key = key;
-        oc.isGroup = f.groupBy;
-        oc.isAgg   = (f.agg != ql::AggKind::None);
-        hasAgg = hasAgg || oc.isAgg;
-
-        if (oc.isAgg) {
-            oc.expr = make_agg_expr(dialect_, f.agg, baseExpr);
-        } else {
-            oc.expr = baseExpr;
+        // Apply date/time transformation (non-aggregate path)
+        std::string transformedExpr = baseExpr;
+        if (f.dt && f.dt->kind != ql::DtFuncKind::None) {
+            if (!is_dt_prop(owner->type)) {
+                throw std::runtime_error("Date/time function used on non-date/time field: " + owner->name);
+            }
+            transformedExpr = (dialect_ == Dialect::Postgres)
+                ? apply_dtfunc_pg(baseExpr, *f.dt)
+                : apply_dtfunc_sqlite(baseExpr, *f.dt);
         }
 
-        if (oc.isGroup) groupBy.push_back(baseExpr);
+        OutCol oc;
+        oc.key    = key;
+        oc.isGroup= f.groupBy;
+        oc.isAgg  = (f.agg != ql::AggKind::None);
+        hasAgg    = hasAgg || oc.isAgg;
+
+        if (oc.isAgg) {
+            // Aggregates apply to the raw base column (COUNT(*) ignores it anyway)
+            oc.expr = make_agg_expr(dialect_, f.agg, baseExpr);
+        } else {
+            // Non-aggregated: use transformed (if any)
+            oc.expr = transformedExpr;
+        }
+
+        if (oc.isGroup) {
+            // Group by the same scalar expression the user sees (i.e., after dt transform)
+            groupBy.push_back(oc.isAgg ? baseExpr : transformedExpr);
+        }
         out.push_back(std::move(oc));
     }
 
@@ -152,7 +237,7 @@ std::string SelectBuilder::build_sql(const ql::QueryDoc& q) const {
         for (const auto& oc : out) {
             if (!oc.isAgg && !oc.isGroup) {
                 throw std::runtime_error(
-                    "Non-aggregated projection '" + oc.key + "' must be marked with .groupby when aggregates are used");
+                    "Non-aggregated field '" + oc.key + "' must be marked with .groupby when aggregates are used");
             }
         }
     }
@@ -171,7 +256,7 @@ std::string SelectBuilder::build_sql(const ql::QueryDoc& q) const {
         << from.str();
 
     if (!groupBy.empty()) {
-        // GROUP BY clause over raw column expressions (not aliases)
+        // GROUP BY clause over scalar expressions (match projection transform)
         sql << "GROUP BY ";
         for (size_t i=0;i<groupBy.size();++i) {
             if (i) sql << ", ";
