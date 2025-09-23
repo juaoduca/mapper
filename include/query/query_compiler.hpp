@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include "query_ast.hpp"
 #include "lib.hpp"
+// #include "lexer.h"
 
 namespace ql {
 

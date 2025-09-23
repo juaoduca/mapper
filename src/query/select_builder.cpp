@@ -265,6 +265,17 @@ struct OutCol {
                         ? apply_dtfunc_pg(nbase, *nf.dt)
                         : apply_dtfunc_sqlite(nbase, *nf.dt);
                 }
+                // Nested aggregates on OBJECT FK (1:1) collapse to scalar:
+                if (nf.agg != ql::AggKind::None) {
+                    if (nf.agg == ql::AggKind::Count) {
+                        nexpr = "CASE WHEN " + jAlias + "." + qident(refField->name, dialect_) + " IS NULL THEN 0 ELSE 1 END";
+                    } else if (nf.agg == ql::AggKind::Avg) {
+                        nexpr = "avg(" + nbase + ")";
+                    } else if (nf.agg == ql::AggKind::Sum) {
+                        nexpr = "sum(" + nbase + ")";
+                    }
+                }
+                (void)nf.groupBy; // accepted but no-op for 1:1
                 nested_pairs.emplace_back(nkey, nexpr);
             }
 

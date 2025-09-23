@@ -1,0 +1,73 @@
+/************************************************************
+
+this is the suggested EBNF for the query_compiler.cpp file.
+
+It can be changed or exetended as needed !
+
+************************************************************/
+
+
+
+query_doc = "{", { query }, "}";
+
+query = query_name, [ query_args ], field_list;
+
+query_name = identifier;
+
+query_args = "(", query_arg_list, ")";
+
+query_arg_list = query_arg, { logical_operator, query_arg };
+
+query_arg = [ "!" ], "(", query_arg_list, ")" | single_arg;
+
+single_arg = lvalue, comparator, rvalue;
+
+lvalue = identifier | function_call;
+
+rvalue = identifier | function_call | value;
+
+field_list = "{", { field }, "}";
+
+field = [ alias, ":" ], field_name, [ field_args ], [ function_chain ], [ nested_object ];
+
+field_name = identifier;
+
+field_args = "(", [ field_arg ], ")";
+
+field_arg = [ comparator ], rvalue;
+
+function_chain = ".", function_call, { ".", function_call };
+
+function_call = function_name, [ args ];
+
+function_name = identifier;
+
+args = "(", [ arg_list ], ")";
+
+arg_list = arg, { ",", arg };
+
+arg = value | identifier | function_call;
+
+nested_object = [ join_type ], [ level_spec ], field_list;
+
+join_type = ".leftjoin" | ".rightjoin";
+
+level_spec = ".level", "(", number, ")" | ".all";
+
+alias = identifier;
+
+comparator = "==" | "=" | ":" | "!=" | "<" | ">" | "<=" | ">=";
+
+logical_operator = "AND" | "OR";
+
+value = string_literal | number | boolean_literal | null_literal;
+
+identifier = letter, { letter | digit | "_" };
+
+string_literal = '"', { character }, '"';
+
+number = digit, { digit }, [ ".", { digit } ];
+
+boolean_literal = "true" | "false";
+
+null_literal = "null";

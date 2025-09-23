@@ -157,7 +157,7 @@
         ttL_CURLY  , // {
         ttBAR      , // |
         ttR_CURLY  , // }
-        ttTILDE    , // ~  Last single char index
+        ttTILDE    , // ~  Last single char index 126
 
         ttDEL     , // DEL = ASCII 127
         ttNOT_EQUALS, // != ou <> // ASCII - 128 em diante
@@ -514,6 +514,20 @@
         }
     }
 
+    const char* getTokenStr(TokenType type) {
+        if (type < 127) {
+            char c[2] = {(char)type, '\0'};
+             return std::move<char*>(c);
+        } else {
+            for (int i=0; i< sizeof(tokens_map); i++) {
+                if (tokens_map[i].type == type) {
+                    return tokens_map[i].value;
+                }
+            }
+        }
+        return "TOKEN_NOT_FOUND";
+    }
+
     Token next_token(Lexer* lx) {
         int len = (lx->pos - lx->text);
         if ( (len > lx->len) ) {
@@ -711,6 +725,16 @@
 
     char peek_char(Lexer *lx) {
         return *lx->pos;
+    }
+
+    Token eat(Lexer *lx, TokenType expected) {
+        Token t = next_token(lx);
+        if (t.type != expected) {
+            char msg[64];
+            sprintf(msg, "Expected type: \"%s\" got: %s", getTokenStr(expected), getTokenStr(t.type));
+            throw std::runtime_error(msg);
+        }
+        return t;
     }
 
     #endif // C_LEXER_H

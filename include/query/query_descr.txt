@@ -1,0 +1,121 @@
+following is a text description specifying a query language based in graphql notation,
+This query language will produce a SQL select to retrieve data from one or more tables
+The tables are defined by a JSONSchema extension that is keep in-memory in a catalog
+
+i need a EBNF notation based in this text:
+
+a query doc starts with a "{" and ends with an "}"
+
+inside this doc MUST exists at least one or more queries
+
+each query may have a name, this name MUST be of a SchemaName/TableName
+
+the query may have arguments in between parenthesis "(" QUERY_ARGS ")"
+
+if there is no query_args the "("")" are optional
+
+each query_arg must have a lvalue a comparator and a rvalue
+
+a comparator is one of : "<" ">" "<=" ">=" "!=" the equals comparator may be "=" "==" or ":"
+
+the NOT comparator may appear before the query_arg, so the arg must be inside paranthesis
+
+eg.: name( !(field > value) )
+
+for the next query_arg must have a Logical_Operator: "AND" "OR" etc
+
+eg.: name( !(field > value) OR ( !(func > 10) AND (func < 20) ) )
+
+the lvalue may be a field or a function
+
+do not allow a value in lvalue to avoid SQL injection hack
+
+the rvalue may be a field, a function or a value
+
+the query_args ends up in the WHERE clause in the SELECT STMT
+
+after the query(query_args) there MUST be field list inside "{""}"
+
+eg.: Name(query_args) { FIELD_LIST }
+
+if there is no field in the list, the "{""}" is still mandatory
+
+each field in field_list may have an Alias followed by a ":" and the field name
+
+the field name may have arguments between "("")" eg.: Alias:Field(FIELD_ARGS)
+
+if there is no field_args, the "("")" are optional
+
+A field arguments will end up in the WHERE clause having: lvalue comparator rvalue
+the field itself is the lvalue
+
+so after the open parenthesis may have a comparator: "<" ">" "<=" ">=" "!="
+
+if no comparator is provided assume equals comparator "=" or "=="
+
+after the comparator, is expected a rvalue that can be a value, a field or a function()
+
+following it may have functions in the form of: Alias:Field(args).func().func().func()
+
+if the function have no function_args the parenthesis is optional
+
+eg.: Alias:Field(args).func.func.func
+
+the function may be converted to a equivalent SQL function to the underlined DB engine (sqlite PG)
+
+eg.: field.sum = select SUM(FIELD) as field
+eg.: id.count = : select  count(*) as id
+eg.: field.add(30) => select (field + 30) as field
+eg.: field.add(30).div(2) => select ((field + 30)/2) as field
+eg.: field.add(30).div(2).sum => select sum(((field + 30)/2)) as field
+eg.: field.add(30).div(2).sum.round(2) = select round(sum((field+30)/2) , 2) as field
+eg.: field.date = call sql date formating to =: yyyy-mm-dd
+eg.: field.item = call sql date formating to =: hh:nn:ss
+eg.: field.ym = call sql date formating to =: yyyy-mm
+
+functions fro math => add, sub, mult, div, mod, power, round etc
+aggreagate function => sum count avg ...
+date time formating => yyyy-mm-dd etc
+and so on for supported SQL functions in the underlined DB engine
+
+
+chain functions can be like this: field.ym.groupby => ends up grouping the records per month
+
+a field can be a nested object in the form Alias:field(args).func(func_args).func{ NESTED_FIELD_LIST }
+
+the NESTED_FIELD_LIST is optional, so the "{""}" eg.: {query {id, name, nested }}
+
+if no NESTED_FIELD_LIST is defined for the nested object, the field value must be retrived
+
+so this {query {id, name, nested }} become a SQL like this "SELECT id, name, nested FROM query"
+
+if there is a NESTED_FIELD_LIST, this nested object(or nested query) will end up as a SQL JOIN,
+
+if no join type is specified, so defaults to LEFT JOIN
+
+to explicit define the join type a func must be present like
+
+nested_field.rightjoin{NESTED_FIELD_LIST}
+nested_field.leftjoin{NESTED_FIELD_LIST}
+
+If the nested table have a SELF_JOIN relation
+
+a function name level(n) can be used to define the depth of the query joins
+
+so nested.level(2) will tell the sql_builder to build joins as it was two separate tables
+
+if no level function is present,  implement a Recursive CTE SQL
+
+eg.: { self{ id, name, self { id, name}}} // will end up as a Recursive CTE SQL
+eg.: { self{ id, name, self.level(2){ id, name}}} // will implement 2 tables joins
+eg.: { self{ id, name, self.level(3){ id, name}}} // will implement 3 tables joins
+eg.: { self{ id, name, self.all{id name self }}}
+
+level param MUST be >= 2;
+level 0 is the query table, same as {self {id, name, self }}
+level 1 is the nested_field table {self {id, name, self{id, name} }} or the Recursive CTE SQL
+level 2 {self {id, name, alias:self{id, name} }}
+    SELECT self.id, name.id, alias.id, alias.name
+    FROM self left join self alias on (self.id = alias.self)
+
+for the nested object, the NESTED_FIELD_LIST have the same rules as FIELD_LIST above in a recursive way

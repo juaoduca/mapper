@@ -370,3 +370,99 @@ TEST_CASE("FK nested object selection (Postgres)", "[select][join][pg]") {
     REQUIRE(sql.find("'owner', jsonb_build_object('id', j0.\"ID\", 'phone', j0.\"Phone\")") != std::string::npos);
     REQUIRE(sql.find("SELECT jsonb_agg(obj) AS data") != std::string::npos);
 }
+
+
+// ---- SQLite: nested groupby + nested aggregates (1:1 FK collapses to scalar) ----
+TEST_CASE("Nested FK: createdAt.date.groupby and id.count (SQLite)", "[select][join][nested][sqlite]") {
+    auto Animal = makeSchemaT("Animal", nullptr, {{"ID",PropType::Integer}});
+    auto Dog    = makeSchemaT("Dog", Animal, {{"ID",PropType::Integer}, {"Owner",PropType::Object}});
+    auto Owner  = makeSchemaT("Owner", nullptr, {
+        {"ID",PropType::Integer},
+        {"CreatedAt",PropType::Dt_Time},
+        {"Name",PropType::String}
+    });
+
+    // Dog.Owner -> Owner.ID
+    {
+        auto fk = Dog->fields.at("Owner");
+        fk->type = PropType::Object; fk->parent = Dog;
+        fk->ref_Schema = Owner; fk->ref_Field = Owner->fields.at("ID");
+    }
+
+    SelectBuilder::GetSchemaFn get = [&](const std::string& n)->std::shared_ptr<OrmSchema>{
+        if (n=="Animal") return Animal;
+        if (n=="Dog")    return Dog;
+        if (n=="Owner")  return Owner;
+        return {};
+    };
+
+    // alias the count for a stable key name in JSON
+    const char* doc = "{ Dog { id, owner { createdAt.date.groupby, id_count:id.count } } }";
+    ql::QueryCompiler qc;
+    auto ast = qc.compile(doc);
+    SelectBuilder sb(get, Dialect::SQLite);
+    auto sql = sb.build_sql(ast);
+
+    // FK join once, correct aliases (Animal t0, Dog t1, Owner j0)
+    REQUIRE(sql.find("LEFT JOIN \"Owner\" j0 ON (t1.\"Owner\" = j0.\"ID\")") != std::string::npos);
+
+    // nested JSON includes dt mask + scalar count (presence)
+    REQUIRE(
+        sql.find(
+            "'owner', json_object('createdAt', strftime('%Y-%m-%d', j0.\"CreatedAt\"), 'id_count', CASE WHEN j0.\"ID\" IS NULL THEN 0 ELSE 1 END)"
+        ) != std::string::npos
+    );
+
+    // nested .groupby does not introduce a top-level GROUP BY (1:1 FK)
+    REQUIRE(sql.find(" GROUP BY ") == std::string::npos);
+
+    // single-column JSON array wrapper
+    REQUIRE(sql.find("SELECT json_group_array(obj) AS data") != std::string::npos);
+}
+
+// ---- Postgres: nested groupby + nested aggregates (1:1 FK collapses to scalar) ----
+TEST_CASE("Nested FK: createdAt.date.groupby and id.count (Postgres)", "[select][join][nested][pg]") {
+    auto Animal = makeSchemaT("Animal", nullptr, {{"ID",PropType::Integer}});
+    auto Dog    = makeSchemaT("Dog", Animal, {{"ID",PropType::Integer}, {"Owner",PropType::Object}});
+    auto Owner  = makeSchemaT("Owner", nullptr, {
+        {"ID",PropType::Integer},
+        {"CreatedAt",PropType::Dt_Time},
+        {"Phone",PropType::String}
+    });
+
+    // Dog.Owner -> Owner.ID
+    {
+        auto fk = Dog->fields.at("Owner");
+        fk->type = PropType::Object; fk->parent = Dog;
+        fk->ref_Schema = Owner; fk->ref_Field = Owner->fields.at("ID");
+    }
+
+    SelectBuilder::GetSchemaFn get = [&](const std::string& n)->std::shared_ptr<OrmSchema>{
+        if (n=="Animal") return Animal;
+        if (n=="Dog")    return Dog;
+        if (n=="Owner")  return Owner;
+        return {};
+    };
+
+    const char* doc = "{ Dog { id, owner { createdAt.date.groupby, id_count:id.count } } }";
+    ql::QueryCompiler qc;
+    auto ast = qc.compile(doc);
+    SelectBuilder sb(get, Dialect::Postgres);
+    auto sql = sb.build_sql(ast);
+
+    // FK join once, correct aliases
+    REQUIRE(sql.find("LEFT JOIN \"Owner\" j0 ON (t1.\"Owner\" = j0.\"ID\")") != std::string::npos);
+
+    // nested JSON with to_char for date + scalar count (presence)
+    REQUIRE(
+        sql.find(
+            "'owner', jsonb_build_object('createdAt', to_char(j0.\"CreatedAt\", 'YYYY-MM-DD'), 'id_count', CASE WHEN j0.\"ID\" IS NULL THEN 0 ELSE 1 END)"
+        ) != std::string::npos
+    );
+
+    // no top-level GROUP BY introduced by nested .groupby
+    REQUIRE(sql.find(" GROUP BY ") == std::string::npos);
+
+    // single-column JSON array wrapper
+    REQUIRE(sql.find("SELECT jsonb_agg(obj) AS data") != std::string::npos);
+}
