@@ -1,12 +1,12 @@
 following is a text description specifying a query language based in graphql notation,
-This query language will produce a SQL select to retrieve data from one or more tables
+This query language will produce a SQL SELECT/RCTE to retrieve data from one or more tables
 The tables are defined by a JSONSchema extension that is keep in-memory in a catalog
 
-i need a EBNF notation based in this text:
+Textual Description to produce an EBNF notation file:
 
 a query doc starts with a "{" and ends with an "}"
 
-inside this doc MUST exists at least one or more queries
+inside this doc MUST exists at least one but can have more queries
 
 each query may have a name, this name MUST be of a SchemaName/TableName
 
@@ -73,11 +73,22 @@ eg.: field.add(30).div(2) => select ((field + 30)/2) as field
 eg.: field.sum.add(30).div(2) => select sum(((field + 30)/2)) as field
 eg.: field.round(2).sum.add(30).div(2) = select round(sum((field+30)/2) , 2) as field
 
-date time formatting and aggreation
+date time formatting and construct
 eg.: field.date = call sql date formating to =: yyyy-mm-dd
 eg.: field.time = call sql date formating to =: hh:nn:ss
 eg.: field.ym = call sql date formating to =: yyyy-mm
-eg.: field.ym.groupby = call sql date formating to =: yyyy-mm add the formating func to GROUP BY clause
+datetime can combine any of date formating char to build a part of a date where:
+y : year with 4 digits  = 2025
+m : month with 2 digits = 09
+d : day with 2 digits   = 22
+h : hour in 24 format   = 23 => 11pm
+n : minute w/ 2 digits  = 59
+s : seconds w/ 2 digits = 59
+l : milliseconds w/ 3 digits = 999
+z : timezone in minutes =  -720 ~ +840
+eg.: field.ymd , field.hnsl , field.mdh
+da time aggregating the result formatting
+eg.: field.ym.groupby = call sql date formating to "yyyy-mm",  add the formating func to GROUP BY clause
 
 string manipulating
 eg.: field.substr(1,3) = call sql substr(field, 1, 3)

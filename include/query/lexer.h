@@ -179,6 +179,8 @@
         ttLOG_OR, // Logical Op OR
         ttLOG_NOT, // Logical Op NOT
         ttLOG_XOR, // Logical Op XOR
+        ttTRUE,
+        ttFALSE,
         //
         ttBETWEEN, //
         ttCONTAINS,
@@ -243,6 +245,7 @@
         size_t len; // text len \0 included
         char* pos; // inc pointer
         char lower[TOKEN_SIZE]; // to hold the lower conversion and avoid maloc/freemem in getTokenType()
+        Token current;
     };
 
     Token asciiTokens[] {
@@ -378,7 +381,7 @@
     };
 
     // ordered token map
-    Token tokens_map[] = { // will be ordered by init_lexer
+    Token tokens_map[] = { // will be ordered by lexer_init
         { "##"         , ttMLC            },
         { "..."        , ttSPREAD         },
         { "\n"         , ttEOL            },
@@ -418,6 +421,7 @@
         { "div"        , ttDIV            },
         { "ends_with"  , ttENDS           },
         { "ew"         , ttENDS           },
+        { "false"      , ttFALSE          },
         { "hour"       , ttHOUR           },
         { "hr"         , ttHOUR           },
         { "in"         , ttIN             },
@@ -442,6 +446,7 @@
         { "sub"        , ttSUB            },
         { "sum"        , ttSUM            },
         { "trunc"      , ttTRUNC          },
+        { "true"       , ttTRUE           },
         { "xor"        , ttLOG_XOR        },
         { "year"       , ttYEAR           },
         { "yr"         , ttYEAR           }
@@ -454,17 +459,6 @@
     };
 
     size_t map_size = 0;
-
-    Lexer init_lexer(char* text) {
-        map_size = ( sizeof(tokens_map) / sizeof(tokens_map[0]) );
-        qsort(tokens_map, map_size, sizeof(Token), sortCmpTokens);
-        Lexer lx;
-        lx.text = text;
-        lx.pos = text;
-        lx.len = strlen(text);
-        for (int i = 0; i < TOKEN_SIZE; i++) { lx.lower[i] = 0xFF;}
-        return lx;
-    }
 
     //must pass the key in lowercase as the table is lower
     TokenType getTokenType (const char *key) {
@@ -723,18 +717,59 @@
         return token_;
     }
 
-    char peek_char(Lexer *lx) {
-        return *lx->pos;
+    /******************************************
+     *            PUBLIC INTERFACE           *
+     ******************************************/
+
+    //move forward - set current token
+    void lexer_next(Lexer *lx) {
+        lx->current = next_token(lx);
     }
 
-    Token eat(Lexer *lx, TokenType expected) {
+
+    Lexer lexer_init(char* text) {
+        map_size = ( sizeof(tokens_map) / sizeof(tokens_map[0]) );
+        qsort(tokens_map, map_size, sizeof(Token), sortCmpTokens);
+        Lexer lx;
+        lx.text = text;
+        lx.pos = text;
+        lx.len = strlen(text);
+        for (int i = 0; i < TOKEN_SIZE; i++) { lx.lower[i] = 0xFF;}
+        lexer_next(&lx);// sets current
+        return lx;
+    }
+
+    // look-ahead no move neither set current
+    Token lexer_peek(Lexer* lx) {
+        char* pos = lx->pos;
         Token t = next_token(lx);
-        if (t.type != expected) {
-            char msg[64];
-            sprintf(msg, "Expected type: \"%s\" got: %s", getTokenStr(expected), getTokenStr(t.type));
-            throw std::runtime_error(msg);
-        }
+        lx->pos = pos;
         return t;
+    }
+
+    //if match expected - move forward - set current - return true - else false no throw
+    bool lexer_accept(Lexer *lx, TokenType expected) {
+        Token t = lexer_peek(lx);
+        if (t.type != expected) {
+            return false;
+        }
+        lexer_next(lx); // lx->current = _next_token(lx);
+        return true;
+    }
+
+    void lexer_error(TokenType expected, TokenType got, const char* value="") {
+        char msg[64];
+        sprintf(msg, "Expected: \"%s\" but got: %s, with value: %s", getTokenStr(expected), getTokenStr(got), value);
+        throw std::runtime_error(msg);
+    }
+
+    // if match move else throw
+    void lexer_expect(Lexer *lx, TokenType expected) {
+        Token t = lexer_peek(lx);
+        if (t.type != expected) {
+            lexer_error(expected, t.type, t.value);
+        };
+        lexer_next(lx); // lx->current = _next_token(lx);
     }
 
     #endif // C_LEXER_H

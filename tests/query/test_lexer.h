@@ -109,7 +109,7 @@
         for (int i = 0; i < num_tests; ++i) {
             Lexer lexer;
             char* test_input = strdup(tests[i].input_string);
-            lexer = init_lexer(test_input);
+            lexer = lexer_init(test_input);
 
             Token received_token = next_token(&lexer);
 
@@ -133,7 +133,7 @@
 
     // void test_lexer2() {
     //     const char *text = "{ query(abc+def) { fld1 fld2 }}";
-    //     Lexer lx = init_lexer((char*)text);
+    //     Lexer lx = lexer_init((char*)text);
     //     Token tokens[13];
     //     Token tk;
     //     int i = 0;

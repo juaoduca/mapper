@@ -1,12 +1,3 @@
-/************************************************************
-
-this is the suggested EBNF for the query_compiler.cpp file.
-
-It can be changed or exetended as needed !
-
-************************************************************/
-
-
 
 query_doc = "{", { query }, "}";
 
@@ -14,13 +5,17 @@ query = query_name, [ query_args ], field_list;
 
 query_name = identifier;
 
-query_args = "(", query_arg_list, ")";
+query_args = "(", boolExpression, ")";
 
-query_arg_list = query_arg, { logical_operator, query_arg };
+boolExpression = orExpression;
 
-query_arg = [ "!" ], "(", query_arg_list, ")" | single_arg;
+orExpression = andExpression, { "OR", andExpression};
 
-single_arg = lvalue, comparator, rvalue;
+andExpression = notExpression, {"AND", notExpression};
+
+notExpression = ["NOT"], comparison;
+
+comparison = lvalue , [comparator], rvalue;
 
 lvalue = identifier | function_call;
 
@@ -56,9 +51,7 @@ level_spec = ".level", "(", number, ")" | ".all";
 
 alias = identifier;
 
-comparator = "==" | "=" | ":" | "!=" | "<" | ">" | "<=" | ">=";
-
-logical_operator = "AND" | "OR";
+comparator = "=" | "<>" | "<" | ">" | "<=" | ">=" | "IS" , [ "NOT" ] , "NULL" | "LIKE"
 
 value = string_literal | number | boolean_literal | null_literal;
 

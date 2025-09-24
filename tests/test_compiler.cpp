@@ -10,7 +10,7 @@ TEST_CASE("Test LEXER ", "Only one returned Token") {
 TEST_CASE("Test LEXER 2", "varios returned tokens") {
 
         const char *text = "{ query(abc+def) { fld1 fld2 }}";
-        Lexer lx = init_lexer((char*)text);
+        Lexer lx = lexer_init((char*)text);
         Token tokens[14];
         Token tk;
         int i = 0;
