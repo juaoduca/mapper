@@ -232,7 +232,9 @@
         ttON, // graphQL FragmentSpread on InterfaceType "...frag on Funcio"
         ttNEG_INT,
         ttNEG_FLOAT,
-        ttERROR
+        ttERROR,
+        ttCOMPARATOR,
+        ttRVALUE
     };
 
     struct Token { // ATENCAO - NAO MUDAR A ORDEM - senão terá que alterar as ARRAYS assciTokens e tokens_map  acima
@@ -411,6 +413,7 @@
         { "avg"        , ttAVG            },
         { "between"    , ttBETWEEN        },
         { "bt"         , ttBETWEEN        },
+        { "comparator" , ttCOMPARATOR     },
         { "contains"   , ttCONTAINS       },
         { "count"      , ttCOUNT          },
         { "ct"         , ttCONTAINS       },
@@ -440,6 +443,7 @@
         { "or"         , ttOR             },
         { "right"      , ttRIGHT          },
         { "round"      , ttROUND          },
+        { "rvalue"     , ttRVALUE         },
         { "sec"        , ttSEC            },
         { "starts_with", ttSTARTS         },
         { "sw"         , ttSTARTS         },
@@ -749,17 +753,16 @@
 
     //if match expected - move forward - set current - return true - else false no throw
     bool lexer_accept(Lexer *lx, TokenType expected) {
-        Token t = lexer_peek(lx);
-        if (t.type != expected) {
+        if (lexer_peek(lx).type != expected) {
             return false;
         }
         lexer_next(lx); // lx->current = _next_token(lx);
         return true;
     }
 
-    void lexer_error(TokenType expected, TokenType got, const char* value="") {
+    void lexer_error(TokenType expected, Token *t) {
         char msg[64];
-        sprintf(msg, "Expected: \"%s\" but got: %s, with value: %s", getTokenStr(expected), getTokenStr(got), value);
+        sprintf(msg, "Expected: \"%s\" but got: %s, with value: %s", getTokenStr(expected), getTokenStr(t->type), t->value);
         throw std::runtime_error(msg);
     }
 
@@ -767,7 +770,7 @@
     void lexer_expect(Lexer *lx, TokenType expected) {
         Token t = lexer_peek(lx);
         if (t.type != expected) {
-            lexer_error(expected, t.type, t.value);
+            lexer_error(expected, &t);
         };
         lexer_next(lx); // lx->current = _next_token(lx);
     }
