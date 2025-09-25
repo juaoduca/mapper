@@ -24,3 +24,25 @@ static Token newtk(TokenType type, const char* value) {
     t.value[TOKEN_SIZE - 1] = '\0'; // Ensure null-termination
     return t;
 }
+
+TEST_CASE("Query Compiler constructor","without getSchema() Function") {
+    // Animal -> Canine -> Dog
+    auto Animal = makeSchema("Animal", nullptr, {"ID","Age"});
+    auto Canine = makeSchema("Canine", Animal, {});
+    auto Dog    = makeSchema("Dog", Canine, {"Breed"});
+
+    auto get = [&](const std::string& n)->std::shared_ptr<OrmSchema>{
+     if (n=="Animal") return Animal;
+     if (n=="Canine") return Canine;
+     if (n=="Dog")    return Dog;
+     return {};
+    };
+
+    ql::QueryParser qp("{ query{ field1 field2 field3}}");
+    const ql::Doc doc = qp.parseDoc();
+    ql::QueryBuilder qb(doc, get, Dialect::SQLite);
+    std::string sql = qb.buildSelect();
+
+    REQUIRE(!sql.empty());
+
+}
