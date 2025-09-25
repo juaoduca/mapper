@@ -5,12 +5,12 @@
 
 #define REF_SCHEMA_ERROR "Referenced Schema: %s referenced by: %s was not found!"
 
-bool OrmSchema::from_json(std::string JSON, OrmSchema& schema, GetRefSchemaFn getRefSchema) {
+bool OrmSchema::from_json(std::string JSON, OrmSchema& schema, GetSchemaFn getRefSchema) {
     jdoc doc = jhlp::parse_str(JSON);
     return OrmSchema::from_json(doc, schema, getRefSchema);
 }
 
-bool OrmSchema::from_json( jdoc& doc, OrmSchema& schema, GetRefSchemaFn getRefSchema ) {
+bool OrmSchema::from_json( jdoc& doc, OrmSchema& schema, GetSchemaFn getRefSchema ) {
     // local variables
     // jdaloc a = doc.GetAllocator();
     jval& j = doc;

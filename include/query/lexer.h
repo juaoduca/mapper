@@ -250,7 +250,7 @@
         Token current;
     };
 
-    Token asciiTokens[] {
+    inline Token asciiTokens[] {
         { "0"  , ttNUL      },
         { "1"  , ttSOH      },
         { "2"  , ttSTX      },
@@ -383,7 +383,7 @@
     };
 
     // ordered token map
-    Token tokens_map[] = { // will be ordered by lexer_init
+    inline Token tokens_map[] = { // will be ordered by lexer_init
         { "##"         , ttMLC            },
         { "..."        , ttSPREAD         },
         { "\n"         , ttEOL            },
@@ -456,16 +456,16 @@
         { "yr"         , ttYEAR           }
     };
 
-    int sortCmpTokens(const void* a, const void* b) {
+    inline int sortCmpTokens(const void* a, const void* b) {
             const Token* tokenA = (const Token*)a;
             const Token* tokenB = (const Token*)b;
             return strcmp(tokenA->value, tokenB->value);
     };
 
-    size_t map_size = 0;
+    inline size_t map_size = 0;
 
     //must pass the key in lowercase as the table is lower
-    TokenType getTokenType (const char *key) {
+    inline TokenType getTokenType (const char *key) {
 
         /********  local bsearch - no func call *********/
         int low = 0;
@@ -512,7 +512,7 @@
         }
     }
 
-    const char* getTokenStr(TokenType type) {
+    inline const char* getTokenStr(TokenType type) {
         if (type < 127) {
             char c[2] = {(char)type, '\0'};
              return std::move<char*>(c);
@@ -526,7 +526,7 @@
         return "TOKEN_NOT_FOUND";
     }
 
-    Token next_token(Lexer* lx) {
+    inline Token next_token(Lexer* lx) {
         int len = (lx->pos - lx->text);
         if ( (len > lx->len) ) {
             Token tk = {.type = ttEOF};
@@ -726,25 +726,25 @@
      ******************************************/
 
     //move forward - set current token
-    void lexer_next(Lexer *lx) {
+    inline Token lexer_next(Lexer *lx) {
         lx->current = next_token(lx);
+        return lx->current;
     }
 
 
-    Lexer lexer_init(char* text) {
+    inline Lexer lexer_init(const char* text) {
         map_size = ( sizeof(tokens_map) / sizeof(tokens_map[0]) );
         qsort(tokens_map, map_size, sizeof(Token), sortCmpTokens);
         Lexer lx;
-        lx.text = text;
-        lx.pos = text;
+        lx.text = (char*)text;
+        lx.pos = (char*)text;
         lx.len = strlen(text);
         for (int i = 0; i < TOKEN_SIZE; i++) { lx.lower[i] = 0xFF;}
-        lexer_next(&lx);// sets current
         return lx;
     }
 
     // look-ahead no move neither set current
-    Token lexer_peek(Lexer* lx) {
+    inline Token lexer_peek(Lexer* lx) {
         char* pos = lx->pos;
         Token t = next_token(lx);
         lx->pos = pos;
@@ -752,7 +752,7 @@
     }
 
     //if match expected - move forward - set current - return true - else false no throw
-    bool lexer_accept(Lexer *lx, TokenType expected) {
+    inline bool lexer_accept(Lexer *lx, TokenType expected) {
         if (lexer_peek(lx).type != expected) {
             return false;
         }
@@ -760,19 +760,14 @@
         return true;
     }
 
-    void lexer_error(TokenType expected, Token *t) {
-        char msg[64];
-        sprintf(msg, "Expected: \"%s\" but got: %s, with value: %s", getTokenStr(expected), getTokenStr(t->type), t->value);
-        throw std::runtime_error(msg);
-    }
-
     // if match move else throw
-    void lexer_expect(Lexer *lx, TokenType expected) {
+    inline bool lexer_expect(Lexer *lx, TokenType expected) {
         Token t = lexer_peek(lx);
         if (t.type != expected) {
-            lexer_error(expected, &t);
+            return false;
         };
         lexer_next(lx); // lx->current = _next_token(lx);
+        return true;
     }
 
     #endif // C_LEXER_H

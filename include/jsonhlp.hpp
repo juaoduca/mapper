@@ -1,7 +1,5 @@
 
-#ifndef JSONHLP_HPP_
-#define JSONHLP_HPP_
-// #pragma once
+#pragma once
 // Centralize all necessary RapidJSON headers
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
@@ -254,5 +252,3 @@ namespace json {
     }
 
 } // namespace json
-
-#endif

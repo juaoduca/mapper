@@ -1,5 +1,6 @@
 #include "catch.hpp"
 #include "./query/test_lexer.h"
+#include "../include/query/query_compiler.hpp"
 
 TEST_CASE("Test LEXER ", "Only one returned Token") {
 
@@ -8,14 +9,12 @@ TEST_CASE("Test LEXER ", "Only one returned Token") {
 }
 
 TEST_CASE("Test LEXER 2", "varios returned tokens") {
-
-        const char *text = "{ query(abc+def) { fld1 fld2 }}";
-        Lexer lx = lexer_init((char*)text);
+        ql::Lx lx("{ query(abc+def) { fld1 fld2 }}");
         Token tokens[14];
         Token tk;
         int i = 0;
         while (true) {
-            tk = next_token(&lx);
+            tk = lx.next();
             tokens[i] = tk;
             if (tk.type == ttEOF) {break; }
             i++;
@@ -63,4 +62,8 @@ TEST_CASE("Test LEXER 2", "varios returned tokens") {
 
         REQUIRE(tokens[12].type == ttEOF);
 
+}
+
+TEST_CASE("Test Query Compiler struct Lx", "Lx lx.next() lx.peek() etc") {
+    REQUIRE(true);
 }

@@ -21,3 +21,4 @@ json.patch
 Testing/
 code.patch
 *.patch
+database.db

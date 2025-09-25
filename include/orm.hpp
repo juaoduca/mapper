@@ -1,6 +1,4 @@
-#ifndef ORM_HPP_
-#define ORM_HPP_
-// #pragma once
+#pragma once
 #include <string>
 #include <vector>
 #include <optional>
@@ -20,7 +18,7 @@ class OrmProp; // fw decl
 
 /** callback to OrmSchema::from_json() function to find an ref_schema */
 // using InsertCatalogFn = std::function<bool (const OrmSchema &new_Schema)>;
-using GetRefSchemaFn = std::function<std::shared_ptr<OrmSchema> (const std::string &schema_name)>;
+using GetSchemaFn = std::function<std::shared_ptr<OrmSchema> (const std::string &schema_name)>;
 
 
 struct OrmProp {
@@ -67,12 +65,10 @@ public:
     std::unordered_map<std::string, std::shared_ptr<OrmProp>> fields; // keep insertion order - reflected on DB Tables
     std::vector<OrmIndex> indexes;
     const std::shared_ptr<OrmProp> idprop() const ;
-    static bool from_json(std::string JSON, OrmSchema& schema, GetRefSchemaFn getRefSchema = nullptr);
-    static bool from_json(jdoc& doc, OrmSchema& schema, GetRefSchemaFn getRefSchema = nullptr);
+    static bool from_json(std::string JSON, OrmSchema& schema, GetSchemaFn getRefSchema = nullptr);
+    static bool from_json(jdoc& doc, OrmSchema& schema, GetSchemaFn getRefSchema = nullptr);
 };
 
 PropType proptype(const std::string &type); // impl on orm.cpp
 
 std::string proptype(PropType type); // impl on orm.cpp
-
-#endif

@@ -55,7 +55,7 @@ Storage::Storage(const std::string &db_path, Dialect dialect)
 }
 //public
 bool Storage::init_catalog() {
-    GetRefSchemaFn fn = [&](const std::string &name) { return catalog_->get_schema(name); };
+    GetSchemaFn fn = [&](const std::string &name) { return catalog_->get_schema(name); };
     //create the two DB tables if not exists
     OrmSchema schema_item;
     OrmSchema::from_json(SCHEMA_CATALOG_JSON, schema_item);
@@ -168,7 +168,7 @@ bool Storage::applyUpdates(const OrmSchema *old_schema, const OrmSchema &new_sch
 
 bool Storage::addSchema(std::string &JSONSchema) {
     OrmSchema sch;
-    GetRefSchemaFn fn = [&](const std::string &name) { return catalog_->get_schema(name); };
+    GetSchemaFn fn = [&](const std::string &name) { return catalog_->get_schema(name); };
     OrmSchema::from_json(JSONSchema, sch, fn);
     return addSchema(sch);
 }

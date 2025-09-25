@@ -1,9 +1,7 @@
 
 #include <stdexcept>
-#include "query_ast.hpp"
 #include "query_compiler.hpp"
 #include "lib.hpp"
-#include "lexer.h"
 
 namespace ql {
 
@@ -63,7 +61,7 @@ namespace ql {
         if(lx.accept(ttL_PAREN)) {// field_args
             do {
                 FieldArg farg = parseFieldArg(lx);
-                farg.field = fd;
+                farg.field = std::make_shared<Field>(fd);
                 fd.args.push_back(farg);
             } while( lx.accepts({ttCOMMA, ttSPACE}) );
         }
@@ -82,6 +80,7 @@ namespace ql {
             } while ( lx.accepts({ttCOMMA, ttSPACE}) );
         }
 
+        return fd;
     }
 
     bool parseFuncCall(Lx &lx, QueryArg &queryArg, Token &lvalue) {
@@ -131,33 +130,37 @@ namespace ql {
     }
 
     Query parseQuery(Lx &lx) {
-        if (lx.is(ttIDENTF)) {
-            Token t = lx.next(); // get the identifier
-            Query qr;
-            qr.name = t.value;
-            // if have query_arguments (arg, {",", arg})
-            if (lx.accept(ttL_PAREN)) {
-                do { // queryArgs
-                    QueryArg arg = parseQueryArg(lx);
-                    qr.args.push_back(arg);
-                } while (lx.accept(ttCOMMA));
-                lx.expect(ttR_PAREN);
-            }
+        lx.expect(ttIDENTF);
+        Token t = lx.curr(); // get the identifier
+        Query qr;
+        qr.name = t.value;
+        // if have query_arguments (arg, {",", arg})
+        if (lx.accept(ttL_PAREN)) {
+            do { // queryArgs
+                QueryArg arg = parseQueryArg(lx);
+                qr.args.push_back(arg);
+            } while (lx.accept(ttCOMMA));
+            lx.expect(ttR_PAREN);
+        }
 
-            lx.expect(ttL_CURLY); // "{" fieldlist "}" mandatory
-            do {
-                Field fd = parseField(lx);
-                qr.fields.push_back(fd);
-            } while ( lx.accept(ttCOMMA) || lx.accept(ttSPACE) );
+        lx.expect(ttL_CURLY); // "{" fieldlist "}" mandatory
+        do {
+            Field fd = parseField(lx);
+            qr.fields.push_back(fd);
+        } while ( lx.accept(ttCOMMA) || lx.accept(ttSPACE) );
+
+        return qr;
     }
-}
+}; // namespace ql
 
-Doc QueryParser::parseDoc(Lx &lx) {
+ql::Doc ql::QueryParser::parseDoc() {
     Doc doc;
-    lx.expect(ttL_CURLY);
+    lexer->expect(ttL_CURLY); // doc init "{"
     do {
-        Query qr = parseQuery(lx);
+        Query qr = parseQuery(*lexer); // query1{ ... }
         doc.queries.push_back(qr);
-    } while (lx.accept(ttR_CURLY));
+    } while (lexer->accept(ttSEMI));// { query1{ ... } ; query2{   };  ... }
+
+    lexer->expect(ttR_CURLY); // doc final "}"
     return doc;
 }

@@ -7,14 +7,25 @@ namespace ql {
 
     struct Lx{
         Lexer lx;
-        explicit Lx(char *doc) {lx = lexer_init(doc); }
-        Token next () { lexer_next(&lx); return lx.current; }
+        explicit Lx(const char *doc) {lx = lexer_init(doc); }
+        Token next () { return lexer_next(&lx); }
         Token peek () { return lexer_peek(&lx); }
         Token curr () { return lx.current; }
         bool accept(TokenType expected) { return lexer_accept(&lx, expected); }
-        void expect(TokenType expected) { lexer_expect(&lx, expected); }
         bool is    (TokenType expected) { return peek().type == expected; }
-        void error (TokenType expected, Token *t) { lexer_error(expected, t); }
+        void expect(TokenType expected) {
+            if (!lexer_expect(&lx, expected)) {
+                Token t = peek();
+                error(expected, &t);
+            }
+        }
+        void error (TokenType expected, Token *t) {
+            std::ostringstream er;
+            er << "Expected: " << getTokenStr(expected) << " but got: "
+            << getTokenStr(t->type) <<", with value: "<< t->value <<"\"";
+            throw std::runtime_error(er.str());
+        }
+
         bool accepts(std::initializer_list<TokenType> expected_tokens) {
             if (!lib::isin<TokenType>(peek().type, expected_tokens)) {
                 return false;
@@ -47,15 +58,15 @@ namespace ql {
 
     class QueryParser {
         public:
-            QueryParser(GetSchemaFn fn, char* doc): getSchema(fn), _doc(doc) {
-                Lx lx(_doc);
+            QueryParser(const char* text)
+            : doc(text) {
+                Lx lx(doc);
+                lexer = std::move(&lx);
             }
-
-            Doc parseDoc(Lx &lx);
-
+            Doc parseDoc();
         private:
-            GetSchemaFn getSchema;
-            char *_doc;
+            const char *doc;
+            Lx *lexer;
     };
 
 };

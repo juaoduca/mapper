@@ -2,9 +2,16 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include "lexer.h"
 #include "orm.hpp"
 
 namespace ql {
+
+    class Value {
+    public:
+        std::string name;  // preserve case
+        TokenType type;
+    };
 
     class Field;
 
@@ -14,15 +21,9 @@ namespace ql {
     };
 
     struct FieldArg { // "(" comparator, { RValue } ")";
-        Field field;
+        std::shared_ptr<Field> field;
         Token comparator;
         Value rvalue;
-    };
-
-    class Value {
-    public:
-        std::string name;  // preserve case
-        TokenType type;
     };
 
     class FuncCall: public Value {
@@ -48,7 +49,7 @@ namespace ql {
         std::string name;
         std::vector<QueryArg> args;
         std::vector<Field> fields;
-        std::shared_ptr<OrmSchema> schema;
+        mutable std::shared_ptr<OrmSchema> schema;
     };
 
     struct Doc {
