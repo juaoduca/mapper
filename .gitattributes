@@ -1,0 +1,10 @@
+# Enforce LF for source files
+*.cpp eol=lf
+*.hpp eol=lf
+*.h eol=lf
+*.c eol=lf
+*.md eol=lf
+*.json eol=lf
+*.sh eol=lf
+*.cmake eol=lf
+*.txt eol=lf
